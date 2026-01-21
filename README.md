@@ -52,6 +52,7 @@ what they are and how to interpret messages from them.
 - KeypadLinc on/off and dimmer and scene controller
 - IOLinc relay and sensor module
 - Mini-remotes (4 and 8 button battery powered scene controllers)
+- RemoteLinc 2440 (6 button AAA battery powered scene controller)
 - Battery powered sensors (door, hidden door, window, etc.)
 - Leak sensors
 - Motion sensors

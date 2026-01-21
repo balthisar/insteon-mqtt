@@ -290,6 +290,7 @@ mqtt:
         component: "light"
         config:
           brightness: false
+          sup_clrm: ["onoff"]
           val_tpl: ""
 ```
 

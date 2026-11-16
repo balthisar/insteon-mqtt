@@ -110,3 +110,25 @@ class Test_device:
         self.check_call(IM.cmd_line.util.send, args, config, topic, payload)
 
     #-----------------------------------------------------------------------
+    def test_scene_set(self, mocker):
+        mocker.patch('insteon_mqtt.cmd_line.util.send')
+        IM.cmd_line.util.send.return_value = {"status" : 10}
+
+        args = helpers.Data(topic="cmd_topic", force=False, quiet=True,
+                            address="aa.bb.cc", group=1, level=128,
+                            reason="")
+        config = helpers.Data(a=1, b=2)
+
+        r = IM.cmd_line.device.scene_set(args, config)
+        assert r == 10
+
+        topic = "%s/%s" % (args.topic, args.address)
+        payload = {
+            "cmd" : "scene_set",
+            "level" : args.level,
+            "group" : args.group,
+            "reason" : args.reason,
+            }
+        self.check_call(IM.cmd_line.util.send, args, config, topic, payload)
+
+    #-----------------------------------------------------------------------

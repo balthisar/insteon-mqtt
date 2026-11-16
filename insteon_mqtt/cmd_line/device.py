@@ -196,6 +196,20 @@ def scene(args, config):
 
 
 #===========================================================================
+def scene_set(args, config):
+    topic = "%s/%s" % (args.topic, args.address)
+    payload = {
+        "cmd" : "scene_set",
+        "level" : args.level,
+        "group" : args.group,
+        "reason" : args.reason,
+        }
+
+    reply = util.send(config, topic, payload, args.quiet)
+    return reply["status"]
+
+
+#===========================================================================
 def pair(args, config):
     topic = "%s/%s" % (args.topic, args.address)
     payload = {

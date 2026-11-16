@@ -351,6 +351,28 @@ def parse_args(args):
     sp.set_defaults(func=device.scene)
 
     #---------------------------------------
+    # device.scene_set command
+    sp = commandgrp.add_parser("scene-set", help="Set a scene to a level.",
+                               description="Set this device and all of its "
+                               "linked scene responders to a specific "
+                               "level.  Unlike 'scene', this does not "
+                               "simulate a button press, so the responders "
+                               "are set to the input level rather than the "
+                               "level stored in their all link databases.")
+    sp.add_argument("-q", "--quiet", action="store_true",
+                    help="Don't print any command results to the screen.")
+    sp.add_argument("-r", "--reason", metavar="reason", type=str, default="",
+                    help="Reason message to send with the command.  The "
+                    "responders always use the 'scene' reason.")
+    sp.add_argument("-g", "--group", type=int, default=0x01,
+                    help="Group (button) number of the scene to set "
+                    "(1-255)")
+    sp.add_argument("address", help="Device address or name.")
+    sp.add_argument("level", type=int, help="Brightness level to set "
+                    "(0-255).  0 turns the scene off.")
+    sp.set_defaults(func=device.scene_set)
+
+    #---------------------------------------
     # device.pair command
     sp = initgrp.add_parser("pair", help="Pair a device with the modem.",
                             description="Pair a device to the modem. "

@@ -1,5 +1,15 @@
 # Revision Change History
 
+## [Unreleased]
+
+### New Features ###
+
+- Add a `scene-set` command (MQTT `scene_set`) that sets a device and all of
+  its scene responders to a specific level using direct commands.  The
+  responders are set to the requested level rather than the level stored in
+  their all link databases, and the state change reasons match a scene:
+  `device` for the commanded device and `scene` for the responders.
+
 ## [1.4.0] - Fix Modem Scenes
 
 ### Breaking Change ###

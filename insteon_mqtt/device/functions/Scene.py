@@ -11,6 +11,7 @@ from ... import log
 from ... import message as Msg
 from ... import on_off
 from ... import util
+from ...CommandSeq import CommandSeq
 
 LOG = log.get_logger()
 
@@ -36,6 +37,7 @@ class Scene(Base):
 
         self.cmd_map.update({
             'scene' : self.scene,
+            'scene_set' : self.scene_set,
             })
 
         # NOTE!
@@ -135,3 +137,101 @@ class Scene(Base):
         callback = self.generic_ack_callback("Device acknowledged scene cmd.")
         msg_handler = handler.StandardCmd(msg, callback, our_on_done)
         self.send(msg, msg_handler)
+
+    #-----------------------------------------------------------------------
+    def scene_set(self, level, group=0x01, reason=None, on_done=None):
+        """Set the devices in a scene to a specific level.
+
+        This is different from scene() which simulates a button press on the
+        device.  A scene command causes the responders to use the on level
+        stored in their own all link databases.  This method instead sends a
+        direct command to this device and to each responder in the group so
+        that every device is set to the same level.
+
+        This is useful when the desired level isn't known when the scene is
+        created and so cannot be stored in the responder databases.
+
+        The responders are found using the cached all link database of this
+        device.  If the databases are out of date, refresh them first.
+
+        The state change reasons match a scene() call: this device reports
+        the device reason (or the input reason) and the responders report
+        the scene reason.
+
+        Args:
+          level (int):  The dimmer level [0-255] to set the devices to.  A
+                level of 0 turns the devices off.
+          group (int):  The group (button) number of the scene to set.  The
+                responders are found in this device's database for the group.
+          reason (str):  This is optional and is used to identify why the
+                command was sent.  It is passed through to this device's
+                output signal when the state changes.  The responders always
+                report the scene reason, just as they would for a scene()
+                call.
+          on_done: Finished callback.  This is called when the command has
+                completed.  Signature is: on_done(success, msg, data)
+        """
+        LOG.info("Device %s cmd: scene set grp %s level %s", self.label,
+                 group, level)
+        on_done = util.make_callback(on_done)
+
+        level = util.input_byte({'level': level}, 'level')
+        if level is None:
+            on_done(False, "Invalid level input.", None)
+            return
+
+        group = 0x01 if group is None else int(group)
+        is_on = level > 0
+
+        # Match the reason behavior of scene(): this device reports the
+        # reason as a physical button press (or the user input) while the
+        # responders always report the scene reason.
+        reason = reason if reason else on_off.REASON_DEVICE
+
+        # Only these devices can use a 0-255 dimmer level.  Other responder
+        # types (switches, relays, etc) are just turned on or off.
+        level_types = ("dimmer", "keypad_linc")
+
+        seq = CommandSeq(self, "Scene set complete", on_done,
+                         error_stop=False, name="SceneSet")
+
+        # Set this device first.  For multi-button devices this may only
+        # change the state of the button rather than the load.  Scene is
+        # only mixed into responder devices so set() always exists.
+        level_arg = level if self.type() in level_types else None
+        set_device = self.set  # pylint: disable=no-member
+        seq.add(set_device, is_on=is_on, group=group, level=level_arg,
+                reason=reason)
+
+        # Set each responder that this device's database says is in the
+        # group.  Each responder updates its own state from its ACK so the
+        # software state matches even though no broadcast is sent.
+        for entry in self.db.find_group(group):
+            device = self.modem.find(entry.addr)
+            if not device:
+                LOG.debug("Device %s scene set - device %s is not in "
+                          "config", self.label, entry.addr)
+                continue
+
+            if 'set' not in getattr(device, 'cmd_map', {}):
+                LOG.debug("Device %s scene set - device %s cannot be set",
+                          self.label, device.label)
+                continue
+
+            # Find the local group on the responder that this scene
+            # controls.  Without the responder half of the link we don't
+            # know what to change so skip the device.
+            resp_entry = device.db.find(self.addr, group,
+                                        is_controller=False)
+            if not resp_entry:
+                LOG.warning("Device %s scene set - %s has no responder "
+                            "entry for group %s", self.label, device.label,
+                            group)
+                continue
+
+            local_group = device.group_cmd_local_group(resp_entry)
+            level_arg = level if device.type() in level_types else None
+            seq.add(device.set, is_on=is_on, group=local_group,
+                    level=level_arg, reason=on_off.REASON_SCENE)
+
+        seq.run()

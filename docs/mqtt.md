@@ -465,6 +465,42 @@ Args:
 ```
 
 
+### Set scene level.
+
+Supported: devices
+
+This command sets this device and all of the responders in a scene group to
+a specific level.  Unlike [Scene triggering](#scene-triggering), it does not
+simulate a button press and does not send an all link broadcast.  Instead a
+direct command is sent to this device and to each responder in the group, so
+that every device is set to the same level.  This is useful when the level is
+not known when the scene is created and so cannot be stored in the responder
+databases.
+
+The responders are found using the cached all link database of this device,
+so the database must be up to date.  Run a
+[refresh](#refresh-the-device-state-and-download-its-all-link-database) if
+the links have changed.
+
+Args:
+- level = The dimmer level to set, 0-255.  0 turns the scene off.
+- group = Will default to 1 and can generally be omitted for most devices.
+- reason = Optional reason for the state change of this device.  Defaults to
+  'device'.  The responders always report the 'scene' reason, just as they
+  would for a real scene.  See [reason](reason.md).
+
+   ```
+   { "cmd": "scene_set", "level": 0-255, ["group" : group],
+   ["reason" : "..."] }
+   ```
+
+This command can also be run from the command line:
+
+   ```
+   insteon-mqtt config.yaml scene-set device_name 128
+   ```
+
+
 ### Mark a battery device as awake.
 
 Supported: battery devices only

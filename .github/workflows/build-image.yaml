@@ -1,0 +1,49 @@
+name: Build and Push Docker Image
+
+on:
+  # Build and publish on every push to the default branch.
+  push:
+    branches: [ master ]
+  # Allow a manual run from the Actions page.
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  # The GitHub owner/repository, e.g. balthisar/insteon-mqtt
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # This is a required permission to push to GHCR
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}  # GitHub automatically provides this token, no need to create it manually
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=  # Also tag with commit SHA for easy version rollback
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+

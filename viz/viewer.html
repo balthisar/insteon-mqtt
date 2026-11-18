@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insteon link map</title>
+<style>
+  :root {
+    --ctrl: #1D4ED8;
+    --resp: #EA580C;
+    --device: #6D28D9;
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --bg: #f6f6f3;
+    --panel: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; display: flex; flex-direction: column;
+    color: var(--ink); background: var(--bg);
+    font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    flex: 0 0 52px; height: 52px; display: flex; align-items: center;
+    gap: 14px; padding: 0 16px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 700; letter-spacing: .2px; white-space: nowrap; }
+  #stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  #search {
+    margin-left: auto; width: 220px; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fafafa;
+    font: inherit;
+  }
+  label.toggle { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; white-space: nowrap; }
+  main {
+    flex: 1; min-height: 0; display: grid;
+    grid-template-columns: 300px minmax(0, 1fr) 360px;
+  }
+  aside { background: var(--panel); overflow: auto; }
+  #scenePanel { border-right: 1px solid var(--line); padding: 10px 10px 30px; }
+  #details { border-left: 1px solid var(--line); padding: 16px 18px 40px; }
+  #canvasWrap { position: relative; min-width: 0; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; touch-action: none; }
+  svg.panning { cursor: grabbing; }
+  .node { cursor: pointer; }
+  .node .hit { fill: transparent; pointer-events: all; }
+  #zoombar {
+    position: absolute; right: 14px; bottom: 12px; display: flex;
+    align-items: center; gap: 4px; background: rgba(255,255,255,.9);
+    border: 1px solid var(--line); border-radius: 8px; padding: 4px;
+    font-size: 11px; color: var(--muted);
+  }
+  #zoombar button {
+    min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid var(--line);
+    background: #fff; border-radius: 6px; cursor: pointer; font: inherit;
+    line-height: 1;
+  }
+  #zoombar button:hover { background: #f3f4f6; }
+  #zoomPct { min-width: 38px; text-align: center; }
+  .section {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 14px 6px 6px;
+  }
+  .scene {
+    display: grid; grid-template-columns: 10px 1fr; gap: 8px;
+    padding: 7px 8px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .scene:hover { background: #f3f4f6; }
+  .scene.active { background: #fff5e6; border-color: #f6c177; }
+  .scene.related { background: #eef6ff; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: #9ca3af; }
+  .dot.warn { background: #e11d48; }
+  .scene .label { font-weight: 600; display: block; line-height: 1.25; }
+  .scene .meta { color: var(--muted); font-size: 11px; }
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  h2 { font-size: 16px; margin: 4px 0 2px; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .member {
+    display: grid; grid-template-columns: 44px 1fr auto; gap: 6px;
+    padding: 6px 4px; border-bottom: 1px solid #f1f1f1;
+    cursor: pointer; align-items: center;
+  }
+  .member:hover { background: #f8f8f6; }
+  .roles { display: flex; gap: 3px; }
+  .badge { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 4px; color: #fff; }
+  .badge.controller { background: var(--ctrl); }
+  .badge.responder { background: var(--resp); }
+  .addr { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); }
+  .mname { font-size: 12px; }
+  ul.warn { padding-left: 18px; color: #b91c1c; font-size: 12px; margin: 4px 0; }
+  .pill { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 999px; background: #eef2f7; color: #374151; margin-left: 4px; }
+  .pill.warn { background: #fee2e2; color: #991b1b; }
+  .pill.oneway { background: #e0f2fe; color: #075985; }
+  .kv { display: grid; grid-template-columns: 90px 1fr; gap: 2px 8px; font-size: 12px; margin: 8px 0; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .edge { fill: none; stroke: #c7c7c7; stroke-width: 1; }
+  .edge.device { stroke: var(--device); opacity: .55; stroke-width: 1.2; }
+  .edge.pair.complete { stroke: #c9c9c9; }
+  .edge.pair.partial { stroke: #e11d48; stroke-dasharray: 4 3; opacity: .8; }
+  .edge.scene { stroke: var(--resp); stroke-width: 2; marker-end: url(#arrow); opacity: .95; }
+  .edge.dim { opacity: .06; }
+  .node .main { stroke: #1f2328; stroke-width: 1; }
+  .node.phantom .main { fill: #fff; stroke: #e11d48; stroke-dasharray: 3 2; }
+  .node text {
+    opacity: 0; font-size: 10px; fill: #111; paint-order: stroke;
+    stroke: #fff; stroke-width: 3; stroke-linejoin: round; pointer-events: none;
+  }
+  .node:hover text, .node.show text { opacity: 1; }
+  .node.dim { opacity: .15; }
+  .node .halo, .node .halo2 { fill: none; stroke: transparent; }
+  .node.ctrl .halo { stroke: var(--ctrl); stroke-width: 3; }
+  .node.resp .halo { stroke: var(--resp); stroke-width: 2.5; }
+  .node.both .halo { stroke: var(--ctrl); stroke-width: 3; }
+  .node.both .halo2 { stroke: var(--resp); stroke-width: 2; }
+  .node.sel .main { stroke: #000; stroke-width: 2; }
+  .tray-label { fill: #9ca3af; font-size: 11px; }
+  #hint {
+    position: absolute; right: 14px; top: 12px; color: var(--muted);
+    font-size: 11px; background: rgba(255,255,255,.8); padding: 4px 8px;
+    border-radius: 6px; pointer-events: none;
+  }
+  #legend {
+    position: absolute; left: 14px; bottom: 12px; display: flex;
+    gap: 12px; flex-wrap: wrap; max-width: 70%;
+    background: rgba(255,255,255,.85); padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--line); font-size: 11px; color: var(--muted);
+  }
+  #legend span { display: inline-flex; align-items: center; gap: 5px; }
+  #legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .hide-pair .edge.pair { display: none; }
+  .hide-device .edge.device { display: none; }
+  .hide-orphan .node.pair-orphan, .hide-orphan .node.pair-disconnected,
+  .hide-orphan .node.phantom { display: none; }
+  .keybtn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 8px; padding: 5px 12px; font: inherit; cursor: pointer;
+  }
+  .keybtn:hover { background: #f3f4f6; }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20, 22, 26, .38);
+    display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay.hidden { display: none; }
+  .key-card {
+    background: #fff; border-radius: 14px; width: min(820px, calc(100% - 40px));
+    max-height: 84vh; overflow: auto; padding: 18px 22px 16px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+  }
+  .key-head { display: flex; align-items: center; justify-content: space-between; }
+  .key-head h2 { margin: 0; }
+  .key-close {
+    border: 0; background: none; font-size: 22px; line-height: 1;
+    cursor: pointer; color: var(--muted); padding: 2px 6px;
+  }
+  .key-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 30px; margin-top: 10px; }
+  .key-grid h3 { margin: 12px 0 4px; }
+  .key-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 3px 0; }
+  .key-row .sample { width: 26px; flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; }
+  .key-row .sample.wide { width: 64px; flex: 0 0 64px; }
+  .line { width: 44px; height: 0; border-top: 2px solid #c9c9c9; flex: 0 0 44px; }
+  .line.dashed { border-color: #e11d48; border-top-style: dashed; }
+  .fdot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid #1f2328; }
+  .key-note { color: var(--muted); font-size: 11px; margin: 14px 0 0; }
+  .dot.error { background: #dc2626; }
+  .dot.warn { background: #d97706; }
+  .issue { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; padding: 6px 8px; font-size: 12px; }
+  .issue summary { cursor: pointer; font-weight: 600; outline: none; }
+  .issue.error summary { color: #b91c1c; }
+  .issue.warn summary { color: #92400e; }
+  .issue .why { color: #374151; margin: 6px 0; }
+  .issue h4 { margin: 8px 0 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .cmd { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 6px; align-items: start; margin: 3px 0; }
+  .cmd-body { min-width: 0; }
+  .cmd-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  .cmd code { background: #f3f4f6; padding: 3px 6px; border-radius: 5px; font-size: 10.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .risk { font-size: 9px; text-transform: uppercase; padding: 1px 4px; border-radius: 4px; text-align: center; margin-top: 2px; }
+  .risk.read { background: #e0f2fe; color: #075985; }
+  .risk.write { background: #fef3c7; color: #92400e; }
+  .risk.destructive { background: #fee2e2; color: #991b1b; }
+  .risk.physical { background: #ede9fe; color: #5b21b6; }
+  button.copy { font-size: 10px; border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 2px 5px; cursor: pointer; }
+  .sevdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .sevdot.error { background: #dc2626; }
+  .sevdot.warn { background: #d97706; }
+  .sevdot.info { background: #6b7280; }
+  .guard { color: #92400e; font-size: 11px; margin: 6px 0 0; }
+  .key-row .pill { font-size: 9px; }
+  .key-link { color: #2563eb; text-decoration: none; cursor: pointer; }
+  .key-link:hover { text-decoration: underline; }
+  @media (max-width: 760px) { .key-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Insteon link map</div>
+  <div id="stats"></div>
+  <input id="search" type="search" placeholder="Filter scenes...">
+  <label class="toggle"><input type="checkbox" id="toggle-pair" checked> Pairing</label>
+  <label class="toggle"><input type="checkbox" id="toggle-device" checked> Device links</label>
+  <label class="toggle"><input type="checkbox" id="toggle-orphan" checked> Orphans</label>
+  <button id="keyBtn" class="keybtn" type="button" title="Show the visual key">Key</button>
+</header>
+<main>
+  <aside id="scenePanel">
+    <div id="sceneList"></div>
+  </aside>
+  <section id="canvasWrap">
+    <svg id="graph"></svg>
+    <div id="hint">hover for names · wheel to zoom · drag to pan</div>
+    <div id="legend"></div>
+    <div id="zoombar">
+      <button id="zoomOut" type="button" title="Zoom out">&minus;</button>
+      <span id="zoomPct">100%</span>
+      <button id="zoomIn" type="button" title="Zoom in">+</button>
+      <button id="zoomFit" type="button" title="Fit all">Fit</button>
+    </div>
+  </section>
+  <aside id="details"></aside>
+</main>
+
+<div id="keyOverlay" class="overlay hidden" role="dialog" aria-modal="true"
+     aria-labelledby="keyTitle">
+  <div class="key-card">
+    <div class="key-head">
+      <h2 id="keyTitle">Visual key</h2>
+      <button id="keyClose" class="key-close" type="button" aria-label="Close key">&times;</button>
+    </div>
+    <div class="key-grid">
+      <section>
+        <h3>Devices</h3>
+        <div id="keyFamilies"></div>
+        <div class="key-row"><span class="sample"><svg width="22" height="22"><text x="11" y="16" text-anchor="middle" font-size="15" fill="#666">&#10005;</text></svg></span><span>modem (hub)</span></div>
+        <div class="key-row"><span class="sample"><svg width="22" height="22"><circle cx="11" cy="11" r="8" fill="#fff" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/></svg></span><span>no database (stale or old PLM)</span></div>
+        <div class="key-row"><span class="sample"><svg width="44" height="10"><line x1="1" y1="5" x2="43" y2="5" stroke="#d1d5db" stroke-dasharray="5 4"/></svg></span><span>tray = not connected to the modem</span></div>
+      </section>
+      <section>
+        <h3>Links</h3>
+        <div class="key-row"><span class="sample"><span class="line"></span></span><span>complete pairing (modem &harr; device)</span></div>
+        <div class="key-row"><span class="sample"><span class="line dashed"></span></span><span>incomplete or one-sided pairing</span></div>
+        <div class="key-row"><span class="sample"><svg width="46" height="14"><path d="M2 12 Q23 -2 44 12" fill="none" stroke="#6D28D9" stroke-width="1.5"/></svg></span><span>device-to-device link</span></div>
+        <div class="key-row"><span class="sample"><svg width="46" height="12"><line x1="2" y1="6" x2="35" y2="6" stroke="#EA580C" stroke-width="2"/><path d="M35 1.5 L44 6 L35 10.5 Z" fill="#EA580C"/></svg></span><span>selected scene link (controller &rarr; responder)</span></div>
+      </section>
+      <section>
+        <h3>Roles</h3>
+        <div class="key-row"><span class="sample"><svg width="24" height="24"><circle cx="12" cy="12" r="8" fill="#4C78A8" stroke="#1D4ED8" stroke-width="3"/></svg></span><span>controller</span></div>
+        <div class="key-row"><span class="sample"><svg width="24" height="24"><circle cx="12" cy="12" r="8" fill="#4C78A8" stroke="#EA580C" stroke-width="2.5"/></svg></span><span>responder (actuator)</span></div>
+        <div class="key-row"><span class="sample"><svg width="28" height="28"><circle cx="14" cy="14" r="8" fill="#4C78A8" stroke="#1D4ED8" stroke-width="3"/><circle cx="14" cy="14" r="12.5" fill="none" stroke="#EA580C" stroke-width="2"/></svg></span><span>both (3-way controller/responder)</span></div>
+        <div class="key-row"><span class="sample"><svg width="24" height="24"><circle cx="12" cy="12" r="8" fill="#4C78A8" stroke="#000" stroke-width="3"/></svg></span><span>focused device</span></div>
+      </section>
+      <section>
+        <h3>Context</h3>
+        <div class="key-row"><span class="sample"><svg width="42" height="18"><circle cx="9" cy="9" r="6" fill="#4C78A8"/><circle cx="31" cy="9" r="6" fill="#4C78A8" opacity="0.18"/></svg></span><span>dimmed = not part of the selection</span></div>
+        <div class="key-row"><span class="sample"><span class="dot error"></span></span><span>scene list: error (scene won't work)</span></div>
+        <div class="key-row"><span class="sample"><span class="dot warn"></span></span><span>scene list: warning (undeclared/unmanaged)</span></div>
+        <div class="key-row"><span class="sample"><span class="dot"></span></span><span>scene list: no detected issues</span></div>
+        <div class="key-row"><span class="sample wide"><span class="pill warn">no config</span></span><span>device is not in config.yaml</span></div>
+        <div class="key-row"><span class="sample"><span class="badge controller">C</span></span><span>controller role in the details panel</span></div>
+        <div class="key-row"><span class="sample"><span class="badge responder">R</span></span><span>responder role in the details panel</span></div>
+      </section>
+    </div>
+    <p class="key-note">Hover a dot for its name. Click a scene or device to focus; Esc clears.
+      The URL hash (<code>#scene=...</code>, <code>#device=...</code>) is shareable.</p>
+  </div>
+</div>
+
+<script>
+const DATA = {"meta":{"modem":"70.1a.89","generated":"2026-11-17T10:10:28","devices":40,"links":243,"scenes":28,"colors":{"dimmer":"#4C78A8","switch":"#59A14F","relay":"#59A14F","keypad":"#B07AA1","remote":"#F28E2B","sensor":"#76B7B2","fan":"#EDC948","thermostat":"#E15759","modem":"#666666","other":"#D3D3D3"}},"layout":{"view":[0,0,940,900],"modem":[470,395],"tray":[],"trayY":805},"nodes":[{"id":"17.44.f2","name":"Basement Gym Light Switch","model":"2476S","family":"switch","engine":1,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":0,"buttons":0,"x":515.4,"y":108.6},{"id":"17.44.f3","name":"Basement Lounge Light Switch","model":"2476S","family":"switch","engine":1,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":1,"buttons":1,"x":559.6,"y":119.2},{"id":"41.dc.49","name":"Master Bedroom Lights Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":211.6,"y":263.3},{"id":"42.50.17","name":"Parlour Lights Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":299.5,"y":160.4},{"id":"42.50.19","name":"Laundry Light Switch (secondary)","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":4,"buttons":0,"x":194.2,"y":484.6},{"id":"42.53.70","name":"Laundry Light Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":4,"buttons":0,"x":211.6,"y":526.7},{"id":"42.cb.55","name":"Kitchen Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":8,"buttons":0,"x":338.3,"y":653.4},{"id":"42.d4.57","name":"Garage Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":675.1,"y":600.1},{"id":"42.d4.5d","name":"Deck Exterior Spot Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":756.4,"y":349.6},{"id":"42.d6.7b","name":"Linen Closet Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":183.6,"y":440.4},{"id":"42.d6.b2","name":"Office Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":264.9,"y":189.9},{"id":"42.e1.53","name":"Master Bedroom Closet Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":1,"buttons":0,"x":194.2,"y":305.4},{"id":"42.e4.d1","name":"Dining Room Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":760.0,"y":395.0},{"id":"42.e5.01","name":"Kitchen Table Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":7,"buttons":0,"x":264.9,"y":600.1},{"id":"43.06.f0","name":"Hallway Light Switch (secondary)","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":7,"buttons":0,"x":470.0,"y":685.0},{"id":"43.08.64","name":"Jamie Bedroom Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":380.4,"y":670.8},{"id":"43.08.d3","name":"Hallway Toilet Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":424.6,"y":681.4},{"id":"43.10.60","name":"Basement Stairs Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":675.1,"y":189.9},{"id":"43.1b.48","name":"Hallway Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":7,"buttons":0,"x":515.4,"y":681.4},{"id":"43.27.46","name":"Foyer Light Switch (secondary)","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":6,"buttons":0,"x":745.8,"y":484.6},{"id":"43.2b.82","name":"Front Exterior Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":728.4,"y":526.7},{"id":"43.30.6b","name":"Stairway Light Switch (secondary, middle)","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":5,"buttons":0,"x":380.4,"y":119.2},{"id":"43.30.df","name":"Stairway Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":5,"buttons":0,"x":338.3,"y":136.6},{"id":"43.30.f0","name":"Audrey Bedroom Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":470.0,"y":105.0},{"id":"43.33.c8","name":"Foyer Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":6,"buttons":0,"x":756.4,"y":440.4},{"id":"43.39.c6","name":"Stairway Light Switch (secondary, start)","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":5,"buttons":0,"x":424.6,"y":108.6},{"id":"43.45.19","name":"Kitchen Sink Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":4,"buttons":0,"x":299.5,"y":629.6},{"id":"43.ec.93","name":"Basement Storage Light Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":4,"buttons":0,"x":728.4,"y":263.3},{"id":"43.ec.f7","name":"Garage Exterior Outlet Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":0,"buttons":0,"x":704.6,"y":565.5},{"id":"43.f3.45","name":"Basement Server Room Light Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":4,"buttons":0,"x":601.7,"y":136.6},{"id":"43.f3.c7","name":"Living Room Lights Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":180.0,"y":395.0},{"id":"43.f4.70","name":"Living Room Lights Switch (secondary)","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":183.6,"y":349.6},{"id":"51.02.6b","name":"Basement Sewing Light Switch","model":"2477S","family":"switch","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":3,"buttons":0,"x":640.5,"y":160.4},{"id":"54.ee.4b","name":"Guest Room Remote","model":"2342-222","family":"remote","engine":2,"phantom":false,"configured":true,"one_way":true,"pairing":"complete","scenes":2,"buttons":7,"x":601.7,"y":653.4},{"id":"54.ef.7f","name":"Master Bedroom Remote","model":"2342-222","family":"remote","engine":2,"phantom":false,"configured":true,"one_way":true,"pairing":"complete","scenes":4,"buttons":7,"x":235.4,"y":224.5},{"id":"56.98.2a","name":"Deck Exterior Light Switch","model":"2477D","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":0,"x":745.8,"y":305.4},{"id":"56.d3.ca","name":"Basement Stairs Light Switch (secondary)","model":"2334-232","family":"keypad","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":7,"buttons":7,"x":704.6,"y":224.5},{"id":"70.1a.89","name":"modem 70.1a.89","model":"2413U","family":"modem","engine":null,"phantom":false,"configured":true,"one_way":false,"pairing":"modem","scenes":13,"buttons":0,"x":470,"y":395},{"id":"70.86.79","name":"Guest Room Switch","model":"2342-242","family":"remote","engine":2,"phantom":false,"configured":true,"one_way":true,"pairing":"complete","scenes":1,"buttons":0,"x":559.6,"y":670.8},{"id":"70.9a.d5","name":"Laundry Exterior Light Switch","model":"2334-232","family":"keypad","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":2,"buttons":7,"x":235.4,"y":565.5},{"id":"70.ae.9a","name":"Guest Bedroom Light","model":"2442-222","family":"dimmer","engine":2,"phantom":false,"configured":true,"one_way":false,"pairing":"complete","scenes":1,"buttons":0,"x":640.5,"y":629.6}],"edges":[{"c":"56.d3.ca","r":"17.44.f3","g":4,"kind":"device","complete":true,"data":[255,0,1]},{"c":"17.44.f3","r":"56.d3.ca","g":1,"kind":"device","complete":true,"data":[255,31,4]},{"c":"70.1a.89","r":"41.dc.49","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"41.dc.49","g":38,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.17","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.17","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.17","g":23,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.19","g":34,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.19","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.50.19","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"42.53.70","r":"42.50.19","g":1,"kind":"device","complete":true,"data":[255,0,1]},{"c":"42.50.19","r":"42.53.70","g":1,"kind":"device","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.53.70","g":34,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.53.70","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.53.70","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"42.cb.55","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":33,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":20,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.cb.55","g":22,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d4.57","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d4.57","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d4.5d","g":30,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d4.5d","g":31,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d6.7b","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d6.7b","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d6.b2","g":35,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d6.b2","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.d6.b2","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e1.53","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e4.d1","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e4.d1","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e4.d1","g":23,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":33,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"42.e5.01","g":20,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":33,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.06.f0","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"43.06.f0","r":"43.1b.48","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.1b.48","r":"43.06.f0","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.08.64","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.08.64","g":38,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"54.ef.7f","r":"43.08.64","g":4,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.08.d3","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.08.d3","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.10.60","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.10.60","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"43.10.60","r":"56.d3.ca","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"56.d3.ca","r":"43.10.60","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":33,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.1b.48","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.27.46","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.27.46","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.27.46","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.27.46","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.27.46","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"43.33.c8","r":"43.27.46","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.27.46","r":"43.33.c8","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.2b.82","g":30,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.2b.82","g":31,"kind":"scene","complete":true,"data":[0,31,1]},{"c":"70.1a.89","r":"43.30.6b","g":34,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.30.6b","g":35,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.30.6b","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.30.6b","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"43.39.c6","r":"43.30.6b","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.30.6b","r":"43.30.df","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.30.6b","r":"43.39.c6","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.30.df","r":"43.30.6b","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.30.df","g":34,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.30.df","g":35,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.30.df","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.30.df","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"43.39.c6","r":"43.30.df","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"43.30.df","r":"43.39.c6","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.30.f0","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.30.f0","g":38,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"54.ef.7f","r":"43.30.f0","g":3,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.33.c8","g":32,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.33.c8","g":34,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.33.c8","g":35,"kind":"scene","complete":true,"data":[102,31,1]},{"c":"70.1a.89","r":"43.33.c8","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.33.c8","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.39.c6","g":34,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.39.c6","g":35,"kind":"scene","complete":true,"data":[77,31,1]},{"c":"70.1a.89","r":"43.39.c6","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.39.c6","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.45.19","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.45.19","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.45.19","g":20,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.45.19","g":22,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"43.ec.93","g":29,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.ec.93","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.ec.93","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"56.d3.ca","r":"43.ec.93","g":5,"kind":"device","complete":true,"data":[255,0,1]},{"c":"43.ec.93","r":"56.d3.ca","g":1,"kind":"device","complete":true,"data":[255,31,5]},{"c":"70.1a.89","r":"43.f3.45","g":29,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.f3.45","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.f3.45","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"56.d3.ca","r":"43.f3.45","g":6,"kind":"device","complete":true,"data":[255,0,1]},{"c":"43.f3.45","r":"56.d3.ca","g":1,"kind":"device","complete":true,"data":[255,31,6]},{"c":"70.1a.89","r":"43.f3.c7","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.f3.c7","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"43.f3.c7","r":"43.f4.70","g":1,"kind":"device","complete":true,"data":[255,0,1]},{"c":"43.f4.70","r":"43.f3.c7","g":1,"kind":"device","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.f4.70","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"43.f4.70","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"51.02.6b","g":36,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"70.1a.89","r":"51.02.6b","g":37,"kind":"scene","complete":true,"data":[255,0,1]},{"c":"56.d3.ca","r":"51.02.6b","g":3,"kind":"device","complete":true,"data":[255,0,1]},{"c":"51.02.6b","r":"56.d3.ca","g":1,"kind":"device","complete":true,"data":[255,31,3]},{"c":"54.ee.4b","r":"70.1a.89","g":2,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":3,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":4,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":5,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":6,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":7,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"70.1a.89","g":8,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":2,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":3,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":4,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":5,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":6,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":7,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ef.7f","r":"70.1a.89","g":8,"kind":"button","complete":true,"data":[1,0,0]},{"c":"54.ee.4b","r":"54.ef.7f","g":10,"kind":"device","complete":true,"data":[3,0,0]},{"c":"70.86.79","r":"54.ef.7f","g":1,"kind":"device","complete":true,"data":[3,0,0]},{"c":"54.ee.4b","r":"54.ef.7f","g":4,"kind":"device","complete":true,"data":[3,0,0]},{"c":"70.1a.89","r":"56.98.2a","g":30,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"56.98.2a","g":31,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"56.d3.ca","r":"70.1a.89","g":2,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":3,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":4,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":5,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":6,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":7,"kind":"button","complete":true,"data":[1,0,0]},{"c":"56.d3.ca","r":"70.1a.89","g":8,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.1a.89","r":"56.d3.ca","g":36,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.1a.89","r":"56.d3.ca","g":37,"kind":"scene","complete":true,"data":[255,31,1]},{"c":"70.86.79","r":"70.ae.9a","g":1,"kind":"device","complete":true,"data":[255,31,1]},{"c":"70.9a.d5","r":"70.1a.89","g":2,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":3,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":4,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":5,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":6,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":7,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.9a.d5","r":"70.1a.89","g":8,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.1a.89","r":"70.9a.d5","g":30,"kind":"scene","complete":true,"data":[166,31,1]},{"c":"70.1a.89","r":"70.9a.d5","g":31,"kind":"scene","complete":true,"data":[166,31,1]},{"c":"17.44.f3","r":"70.1a.89","g":4,"kind":"button","complete":true,"data":[1,0,0]},{"c":"70.1a.89","r":"17.44.f2","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"17.44.f3","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"41.dc.49","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.50.17","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.50.19","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.53.70","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.cb.55","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.d4.57","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.d4.5d","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.d6.7b","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.d6.b2","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.e1.53","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.e4.d1","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"42.e5.01","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.06.f0","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.08.64","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.08.d3","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.10.60","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.1b.48","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.27.46","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.2b.82","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.30.6b","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.30.df","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.30.f0","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.33.c8","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.39.c6","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.45.19","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.ec.93","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.ec.f7","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.f3.45","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.f3.c7","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"43.f4.70","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"51.02.6b","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"54.ee.4b","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"54.ef.7f","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"56.98.2a","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"56.d3.ca","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"70.86.79","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"70.9a.d5","g":1,"kind":"pair","complete":true},{"c":"70.1a.89","r":"70.ae.9a","g":1,"kind":"pair","complete":true}],"scenes":[{"id":"basement-back-rooms","label":"Basement Back Rooms","name":"Basement Back Rooms","kind":"modem","declared":true,"controllers":[["70.1a.89",29]],"responders":["43.ec.93","43.f3.45"],"warnings":[]},{"id":"exterior-lights-all","label":"Exterior Lights All","name":"Exterior Lights All","kind":"modem","declared":true,"controllers":[["70.1a.89",30]],"responders":["56.98.2a","42.d4.5d","43.2b.82","70.9a.d5"],"warnings":[]},{"id":"exterior-lights-holiday","label":"Exterior Lights Holiday","name":"Exterior Lights Holiday","kind":"modem","declared":true,"controllers":[["70.1a.89",31]],"responders":["56.98.2a","42.d4.5d","43.2b.82","70.9a.d5"],"warnings":[]},{"id":"first-floor-from-mudroom","label":"First Floor from Mudroom","name":"First Floor from Mudroom","kind":"modem","declared":true,"controllers":[["70.1a.89",32]],"responders":["43.33.c8","43.27.46","43.1b.48","43.06.f0","42.cb.55","42.e5.01"],"warnings":[]},{"id":"first-floor-from-foyer","label":"First Floor from Foyer","name":"First Floor from Foyer","kind":"modem","declared":true,"controllers":[["70.1a.89",33]],"responders":["43.1b.48","43.06.f0","42.cb.55","42.e5.01"],"warnings":[]},{"id":"good-morning-commute","label":"Good Morning Commute","name":"Good Morning Commute","kind":"modem","declared":true,"controllers":[["70.1a.89",34]],"responders":["43.1b.48","43.06.f0","42.cb.55","42.e5.01","42.53.70","42.50.19","43.30.df","43.30.6b","43.39.c6","43.33.c8","43.27.46"],"warnings":[]},{"id":"good-morning-staying-at-home","label":"Good Morning Staying at Home","name":"Good Morning Staying at Home","kind":"modem","declared":true,"controllers":[["70.1a.89",35]],"responders":["43.1b.48","43.06.f0","42.cb.55","42.e5.01","43.30.df","43.30.6b","43.39.c6","43.33.c8","43.27.46","42.d6.b2"],"warnings":[]},{"id":"good-night-from-bedroom","label":"Good Night from Bedroom","name":"Good Night from Bedroom","kind":"modem","declared":true,"controllers":[["70.1a.89",36]],"responders":["43.f3.45","51.02.6b","43.10.60","56.d3.ca","43.ec.93","42.e4.d1","43.33.c8","43.27.46","42.d4.57","43.1b.48","43.06.f0","43.08.d3","42.cb.55","43.45.19","42.e5.01","42.53.70","42.50.19","42.d6.7b","43.f3.c7","43.f4.70","42.d6.b2","42.50.17","43.30.df","43.30.6b","43.39.c6"],"warnings":[]},{"id":"interior-lights-all","label":"Interior Lights All","name":"Interior Lights All","kind":"modem","declared":true,"controllers":[["70.1a.89",37]],"responders":["43.30.f0","43.08.64","43.f3.45","51.02.6b","43.10.60","56.d3.ca","43.ec.93","42.e4.d1","43.33.c8","43.27.46","42.d4.57","43.1b.48","43.06.f0","43.08.d3","42.cb.55","43.45.19","42.e5.01","42.53.70","42.50.19","42.d6.7b","43.f3.c7","43.f4.70","41.dc.49","42.e1.53","42.d6.b2","42.50.17","43.30.df","43.30.6b","43.39.c6"],"warnings":[]},{"id":"kitchen-lights-all","label":"Kitchen Lights All","name":"Kitchen Lights All","kind":"modem","declared":true,"controllers":[["70.1a.89",20]],"responders":["42.cb.55","43.45.19","42.e5.01"],"warnings":[]},{"id":"kitchen-and-sink-lights","label":"Kitchen and Sink Lights","name":"Kitchen and Sink Lights","kind":"modem","declared":true,"controllers":[["70.1a.89",22]],"responders":["42.cb.55","43.45.19"],"warnings":[]},{"id":"parlour-and-dining-lights","label":"Parlour and Dining Lights","name":"Parlour and Dining Lights","kind":"modem","declared":true,"controllers":[["70.1a.89",23]],"responders":["42.e4.d1","42.50.17"],"warnings":[]},{"id":"upstairs-rooms","label":"Upstairs Rooms","name":"Upstairs Rooms","kind":"modem","declared":true,"controllers":[["70.1a.89",38]],"responders":["43.30.f0","43.08.64","41.dc.49"],"warnings":[]},{"id":"laundry-3-way","label":"Laundry 3-way","name":null,"kind":"device","declared":true,"controllers":[["42.53.70",1],["42.50.19",1]],"responders":["42.50.19","42.53.70"],"warnings":[]},{"id":"living-room-3-way","label":"Living Room 3-way","name":null,"kind":"device","declared":true,"controllers":[["43.f3.c7",1],["43.f4.70",1]],"responders":["43.f4.70","43.f3.c7"],"warnings":[]},{"id":"hallway-3-way","label":"Hallway 3-way","name":null,"kind":"device","declared":true,"controllers":[["43.06.f0",1],["43.1b.48",1]],"responders":["43.1b.48","43.06.f0"],"warnings":[]},{"id":"basement-stairs-3-way","label":"Basement Stairs 3-way","name":null,"kind":"device","declared":true,"controllers":[["43.10.60",1],["56.d3.ca",1]],"responders":["56.d3.ca","43.10.60"],"warnings":[]},{"id":"foyer-3-way","label":"Foyer 3-way","name":null,"kind":"device","declared":true,"controllers":[["43.33.c8",1],["43.27.46",1]],"responders":["43.33.c8","43.27.46"],"warnings":[]},{"id":"stairway-3-way","label":"Stairway 3-way","name":null,"kind":"device","declared":true,"controllers":[["43.39.c6",1],["43.30.6b",1],["43.30.df",1]],"responders":["43.30.df","43.30.6b","43.39.c6"],"warnings":[]},{"id":"basement-stairs-secondary-button-3","label":"Basement Stairs (secondary) button 3","name":null,"kind":"device","declared":true,"controllers":[["56.d3.ca",3],["51.02.6b",1]],"responders":["51.02.6b","56.d3.ca"],"warnings":[]},{"id":"basement-stairs-secondary-button-4","label":"Basement Stairs (secondary) button 4","name":null,"kind":"device","declared":true,"controllers":[["56.d3.ca",4],["17.44.f3",1]],"responders":["17.44.f3","56.d3.ca"],"warnings":[]},{"id":"basement-stairs-secondary-button-5","label":"Basement Stairs (secondary) button 5","name":null,"kind":"device","declared":true,"controllers":[["56.d3.ca",5],["43.ec.93",1]],"responders":["43.ec.93","56.d3.ca"],"warnings":[]},{"id":"basement-stairs-secondary-button-6","label":"Basement Stairs (secondary) button 6","name":null,"kind":"device","declared":true,"controllers":[["56.d3.ca",6],["43.f3.45",1]],"responders":["43.f3.45","56.d3.ca"],"warnings":[]},{"id":"guest-room-button-1","label":"Guest Room button 1","name":null,"kind":"device","declared":true,"controllers":[["70.86.79",1]],"responders":["70.ae.9a"],"warnings":[{"kind":"extra_link","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is linked from Guest Room [70.86.79] but not declared","why":"The link exists on both sides, but scenes.yaml doesn't include it.","checks":[{"label":"Inspect Guest Room [70.86.79]","command":"insteon-mqtt config.yaml print-db 70.86.79","risk":"read"}],"fixes":[{"label":"Inspect the device","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Remove the device-side link","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 70.86.79 1","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 70.86.79 1","risk":"destructive"},{"label":"Or import the controller's links","command":"insteon-mqtt config.yaml import-scenes 70.86.79","risk":"write"}],"guard":"If the device is gone, remove its side; if it is real, declare it and add the missing controller half. Dry-run any sync first."},{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room [70.86.79] group 1","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room [70.86.79]","command":"insteon-mqtt config.yaml print-db 70.86.79","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 70.86.79 1","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 70.86.79 1","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."}]},{"id":"master-bedroom-remote-button-3","label":"Master Bedroom Remote button 3","name":null,"kind":"device","declared":true,"controllers":[["54.ef.7f",3]],"responders":["43.30.f0"],"warnings":[]},{"id":"master-bedroom-remote-button-4","label":"Master Bedroom Remote button 4","name":null,"kind":"device","declared":true,"controllers":[["54.ef.7f",4]],"responders":["43.08.64"],"warnings":[]},{"id":"guest-room-remote-54-ee-4b-button-4-unmanaged","label":"Guest Room Remote [54.ee.4b] button 4 (unmanaged)","name":null,"kind":"device","declared":false,"controllers":[["54.ee.4b",4]],"responders":["54.ef.7f"],"warnings":[{"kind":"unmanaged","severity":"warn","message":"controller Guest Room Remote [54.ee.4b] not in scenes.yaml","why":"The database has links for this controller/group, but scenes.yaml doesn't declare them. A sync would delete them.","checks":[{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Import into scenes.yaml","command":"insteon-mqtt config.yaml import-scenes 54.ee.4b","risk":"write"},{"label":"Or remove them (dry run first)","command":"insteon-mqtt config.yaml sync 54.ee.4b","risk":"destructive"}],"guard":"Import first if these are real buttons; sync --run erases undeclared links."},{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room Remote [54.ee.4b] group 4","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 54.ee.4b 4","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 54.ee.4b 4","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."}]},{"id":"guest-room-remote-54-ee-4b-button-10-unmanaged","label":"Guest Room Remote [54.ee.4b] button 10 (unmanaged)","name":null,"kind":"device","declared":false,"controllers":[["54.ee.4b",10]],"responders":["54.ef.7f"],"warnings":[{"kind":"unmanaged","severity":"warn","message":"controller Guest Room Remote [54.ee.4b] not in scenes.yaml","why":"The database has links for this controller/group, but scenes.yaml doesn't declare them. A sync would delete them.","checks":[{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Import into scenes.yaml","command":"insteon-mqtt config.yaml import-scenes 54.ee.4b","risk":"write"},{"label":"Or remove them (dry run first)","command":"insteon-mqtt config.yaml sync 54.ee.4b","risk":"destructive"}],"guard":"Import first if these are real buttons; sync --run erases undeclared links."},{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room Remote [54.ee.4b] group 10","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 54.ee.4b 10","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 54.ee.4b 10","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."}]}],"device_issues":{"54.ef.7f":[{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room Remote [54.ee.4b] group 10","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 54.ee.4b 10","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 54.ee.4b 10","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."},{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room [70.86.79] group 1","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room [70.86.79]","command":"insteon-mqtt config.yaml print-db 70.86.79","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 70.86.79 1","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 70.86.79 1","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."},{"kind":"unexpected_responder","severity":"warn","message":"Master Bedroom Remote [54.ef.7f] is a responder to Guest Room Remote [54.ee.4b] group 4","why":"This is a mini-remote: it has no load to switch, so a responder record is illogical. It is usually created by linking two remotes directly, and it does not make one remote replay the other's scenes.","checks":[{"label":"Inspect Master Bedroom Remote [54.ef.7f]","command":"insteon-mqtt config.yaml print-db 54.ef.7f","risk":"read"},{"label":"Inspect Guest Room Remote [54.ee.4b]","command":"insteon-mqtt config.yaml print-db 54.ee.4b","risk":"read"}],"fixes":[{"label":"Remove the responder record","command":"insteon-mqtt config.yaml db-delete -o 54.ef.7f resp 54.ee.4b 4","risk":"destructive"},{"label":"Or remove both sides","command":"insteon-mqtt config.yaml db-delete 54.ef.7f resp 54.ee.4b 4","risk":"destructive"}],"guard":"Wake battery devices before writing. If the controller is the modem, the responder link may be an I2CS requirement; verify before deleting."}]}};
+</script>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const NODE = Object.fromEntries(DATA.nodes.map(n => [n.id, n]));
+const SCENE = Object.fromEntries(DATA.scenes.map(s => [s.id, s]));
+const MODEM = DATA.meta.modem;
+const VIEW = DATA.layout.view;
+const W = VIEW[2];
+const H = VIEW[3];
+const MODEM_XY = DATA.layout.modem;
+const COLORS = DATA.meta.colors;
+
+const svg = document.getElementById("graph");
+const BASE_VIEW = {x: VIEW[0], y: VIEW[1], w: VIEW[2], h: VIEW[3]};
+const view = {x: BASE_VIEW.x, y: BASE_VIEW.y, w: BASE_VIEW.w, h: BASE_VIEW.h};
+const zoomPctEl = document.getElementById("zoomPct");
+let viewAnim = 0;
+let panStart = null;
+let suppressClick = false;
+
+function applyView() {
+  svg.setAttribute("viewBox", [view.x, view.y, view.w, view.h].join(" "));
+  if (zoomPctEl) {
+    zoomPctEl.textContent = Math.round(BASE_VIEW.w / view.w * 100) + "%";
+  }
+}
+const details = document.getElementById("details");
+const sceneList = document.getElementById("sceneList");
+const search = document.getElementById("search");
+
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(NS, tag);
+  for (const key in attrs) node.setAttribute(key, attrs[key]);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function setHash(value) {
+  try { history.replaceState(null, "", value); } catch (err) { /* file:// */ }
+}
+function esc(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function nameOf(id) { return (NODE[id] && NODE[id].name) || id; }
+function canvasLabel(name) {
+  let text = name
+    .replace(/ (Light|Lights) Switch/i, "")
+    .replace(/ Switch$/i, "")
+    .replace(/ \(secondary, ([^)]+)\)/, " ($1)")
+    .replace(/ \(secondary\)/, " (2)");
+  return text.length > 18 ? text.slice(0, 17) + "\u2026" : text;
+}
+
+// ---------------------------------------------------------------- graph
+const defs = el("defs", {}, svg);
+const marker = el("marker", {id: "arrow", viewBox: "0 0 10 10", refX: "9",
+  refY: "5", markerWidth: "6", markerHeight: "6", orient: "auto-start-reverse"}, defs);
+el("path", {d: "M 0 0 L 10 5 L 0 10 z", fill: "#EA580C"}, marker);
+
+const trayLayer = el("g", {}, svg);
+const edgeLayer = el("g", {}, svg);
+const sceneLayer = el("g", {}, svg);
+const nodeLayer = el("g", {}, svg);
+
+applyView();
+
+if (DATA.layout.tray.length) {
+  const ty = DATA.layout.trayY - 36;
+  el("line", {x1: 40, y1: ty, x2: W - 40, y2: ty, stroke: "#d1d5db",
+              "stroke-dasharray": "5 4"}, trayLayer);
+  el("text", {x: 40, y: ty - 7, class: "tray-label"}, trayLayer)
+    .textContent = "not connected to the modem";
+}
+
+DATA.edges.forEach(edge => {
+  const a = NODE[edge.c], b = NODE[edge.r];
+  if (!a || !b) return;
+  let path;
+  if (edge.kind === "pair") {
+    path = el("line", {x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      class: "edge pair " + (edge.complete ? "complete" : "partial")},
+      edgeLayer);
+  } else if (edge.kind === "device") {
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const cx = mx + (MODEM_XY[0] - mx) * 0.12;
+    const cy = my + (MODEM_XY[1] - my) * 0.12;
+    path = el("path", {d: "M " + a.x + " " + a.y + " Q " + cx + " " + cy +
+      " " + b.x + " " + b.y, class: "edge device"}, edgeLayer);
+  } else {
+    return;
+  }
+  path.dataset.c = edge.c;
+  path.dataset.r = edge.r;
+});
+
+DATA.nodes.forEach((node, index) => {
+  const group = el("g", {class: "node pair-" + node.pairing +
+    (node.phantom ? " phantom" : ""), transform:
+    "translate(" + node.x + "," + node.y + ")"}, nodeLayer);
+  group.dataset.id = node.id;
+  el("circle", {class: "hit", r: 18}, group);
+  el("circle", {class: "halo2", r: 14}, group);
+  el("circle", {class: "halo", r: 11}, group);
+  const main = el("circle", {class: "main", r: node.family === "keypad" ? 8 : 7}, group);
+  main.style.fill = COLORS[node.family] || COLORS.other;
+  const mx = DATA.layout.modem[0], my = DATA.layout.modem[1];
+  const dx = node.x - mx, dy = node.y - my;
+  let lx = 0, ly = -14, anchor = "middle";
+  if (node.y > DATA.layout.trayY - 60) {
+    lx = 0; ly = -14;
+  } else {
+    const level = index % 3;
+    if (Math.abs(dy) > Math.abs(dx) * 0.6) {
+      ly = (dy > 0 ? 13 : -13) * (1 + level * 0.85);
+      anchor = "middle";
+    } else {
+      lx = dx > 0 ? 12 : -12;
+      ly = (level - 1) * 8;
+      anchor = dx > 0 ? "start" : "end";
+    }
+  }
+  const text = el("text", {x: lx, y: ly, "text-anchor": anchor,
+    "dominant-baseline": "middle"}, group);
+  text.textContent = canvasLabel(node.name);
+
+  // Nudge the label off any other node's dot.  Labels are not clickable, but
+  // a label sitting on a neighbouring dot still reads as that dot's name.
+  const others = DATA.nodes.filter(o => o.id !== node.id);
+  const hitsNode = (x, y, a) => {
+    text.setAttribute("x", x);
+    text.setAttribute("y", y);
+    text.setAttribute("text-anchor", a);
+    const b = text.getBBox();
+    if (b.x < 4 || b.y < 4 || b.x + b.width > W - 4 ||
+        b.y + b.height > H - 4) {
+      return true;
+    }
+    return others.some(o => {
+      const ox = o.x - node.x, oy = o.y - node.y;
+      return ox > b.x - 14 && ox < b.x + b.width + 14 &&
+             oy > b.y - 14 && oy < b.y + b.height + 14;
+    });
+  };
+  if (hitsNode(lx, ly, anchor)) {
+    const candidates = [
+      [0, 14, "middle"], [0, -14, "middle"],
+      [16, 0, "start"], [-16, 0, "end"],
+      [16, 14, "start"], [-16, 14, "end"],
+      [16, -14, "start"], [-16, -14, "end"],
+      [0, 26, "middle"], [0, -26, "middle"],
+    ];
+    for (const [x, y, a] of candidates) {
+      if (!hitsNode(x, y, a)) { lx = x; ly = y; anchor = a; break; }
+    }
+    text.setAttribute("x", lx);
+    text.setAttribute("y", ly);
+    text.setAttribute("text-anchor", anchor);
+  }
+
+  group.addEventListener("click", event => {
+    event.stopPropagation();
+    if (suppressClick) return;
+    selectDevice(node.id);
+  });
+});
+
+svg.addEventListener("click", () => {
+  if (suppressClick) { suppressClick = false; return; }
+  clearSelection();
+});
+
+// ------------------------------------------------------------ viewport
+function svgPoint(event) {
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const ctm = svg.getScreenCTM();
+  return ctm ? point.matrixTransform(ctm.inverse())
+              : {x: view.x + view.w / 2, y: view.y + view.h / 2};
+}
+function stopAnim() {
+  if (viewAnim) cancelAnimationFrame(viewAnim);
+  viewAnim = 0;
+}
+function animateView(target, duration = 220) {
+  stopAnim();
+  const start = {x: view.x, y: view.y, w: view.w, h: view.h};
+  const t0 = performance.now();
+  function step(now) {
+    const k = Math.min(1, (now - t0) / duration);
+    const e = 1 - Math.pow(1 - k, 3);
+    view.x = start.x + (target.x - start.x) * e;
+    view.y = start.y + (target.y - start.y) * e;
+    view.w = start.w + (target.w - start.w) * e;
+    view.h = start.h + (target.h - start.h) * e;
+    applyView();
+    if (k < 1) viewAnim = requestAnimationFrame(step);
+  }
+  viewAnim = requestAnimationFrame(step);
+}
+function zoomAt(point, factor) {
+  stopAnim();
+  const minW = BASE_VIEW.w / 8;
+  const maxW = BASE_VIEW.w / 0.5;
+  const newW = Math.min(maxW, Math.max(minW, view.w * factor));
+  const actual = newW / view.w;
+  view.x = point.x - (point.x - view.x) * actual;
+  view.y = point.y - (point.y - view.y) * actual;
+  view.w *= actual;
+  view.h *= actual;
+  applyView();
+}
+function zoomCenter(factor) {
+  zoomAt({x: view.x + view.w / 2, y: view.y + view.h / 2}, factor);
+}
+function viewFor(ids) {
+  const nodes = ids.map(id => NODE[id]).filter(Boolean);
+  if (!nodes.length) return Object.assign({}, BASE_VIEW);
+  let x0 = Math.min(...nodes.map(n => n.x));
+  let x1 = Math.max(...nodes.map(n => n.x));
+  let y0 = Math.min(...nodes.map(n => n.y));
+  let y1 = Math.max(...nodes.map(n => n.y));
+  const pad = 60;
+  x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  let w = x1 - x0, h = y1 - y0;
+  const box = svg.getBoundingClientRect();
+  const aspect = box.width / Math.max(1, box.height);
+  if (w / h < aspect) w = h * aspect;
+  else h = w / aspect;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const minW = BASE_VIEW.w / 3;
+  if (w < minW) { const k = minW / w; w *= k; h *= k; }
+  const maxW = BASE_VIEW.w * 1.2;
+  if (w > maxW) { const k = maxW / w; w *= k; h *= k; }
+  return {x: cx - w / 2, y: cy - h / 2, w: w, h: h};
+}
+function fitTo(ids) {
+  if (!ids || !ids.length) { fitAll(); return; }
+  animateView(viewFor(ids));
+}
+function fitAll() { animateView(Object.assign({}, BASE_VIEW)); }
+
+// ---------------------------------------------------------- scene list
+const SECTIONS = [
+  ["Modem scenes", s => s.declared && s.kind === "modem"],
+  ["Device scenes", s => s.declared && s.kind === "device"],
+  ["Unmanaged", s => !s.declared],
+];
+
+function renderSceneList() {
+  const query = search.value.trim().toLowerCase();
+  sceneList.innerHTML = "";
+  SECTIONS.forEach(([title, filter]) => {
+    const items = DATA.scenes.filter(s => filter(s)).filter(s => {
+      if (!query) return true;
+      const hay = [s.label, s.name || "", ...s.responders,
+        ...s.controllers.map(c => c[0])].join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+    if (!items.length) return;
+    const heading = document.createElement("div");
+    heading.className = "section";
+    heading.textContent = title + " (" + items.length + ")";
+    sceneList.appendChild(heading);
+    items.forEach(scene => {
+      const row = document.createElement("div");
+      row.className = "scene";
+      row.dataset.id = scene.id;
+      const severity = scene.warnings.some(w => w.severity === "error")
+        ? "error" : scene.warnings.length ? "warn" : "ok";
+      row.innerHTML =
+        '<span class="dot ' + severity + '"></span>' +
+        '<span><span class="label">' + esc(scene.label) + '</span>' +
+        '<span class="meta">' + scene.responders.length + " responders" +
+        (scene.warnings.length ? " \u00b7 " + scene.warnings.length + " issue(s)" : "") +
+        '</span></span>';
+      row.addEventListener("click", () => selectScene(scene.id));
+      sceneList.appendChild(row);
+    });
+  });
+}
+
+// ------------------------------------------------------------ selection
+function clearNodeClasses() {
+  document.querySelectorAll(".node").forEach(node => {
+    node.classList.remove("dim", "show", "ctrl", "resp", "both", "sel");
+  });
+  document.querySelectorAll(".edge").forEach(edge => edge.classList.remove("dim"));
+  document.querySelectorAll(".scene").forEach(row => row.classList.remove("active", "related"));
+  sceneLayer.innerHTML = "";
+}
+
+function clearSelection() {
+  clearNodeClasses();
+  showOverview();
+  fitAll();
+  setHash(location.pathname);
+}
+
+function sceneMembers(scene) {
+  return new Set([
+    ...scene.controllers.map(c => c[0]),
+    ...scene.responders,
+  ]);
+}
+
+function drawSceneEdge(ctrl, resp) {
+  const a = NODE[ctrl], b = NODE[resp];
+  if (!a || !b) return;
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const side = ctrl < resp ? 1 : -1;
+  const cx = mx - (dy / len) * 24 * side + (MODEM_XY[0] - mx) * 0.04;
+  const cy = my + (dx / len) * 24 * side + (MODEM_XY[1] - my) * 0.04;
+  el("path", {d: "M " + a.x + " " + a.y + " Q " + cx + " " + cy + " " +
+    b.x + " " + b.y, class: "edge scene"}, sceneLayer);
+}
+
+function selectScene(id, push = true) {
+  const scene = SCENE[id];
+  if (!scene) return;
+  clearNodeClasses();
+  const controllers = new Set(scene.controllers.map(c => c[0]));
+  const responders = new Set(scene.responders);
+  const members = sceneMembers(scene);
+
+  document.querySelectorAll(".node").forEach(node => {
+    const nid = node.dataset.id;
+    if (!members.has(nid)) { node.classList.add("dim"); return; }
+    node.classList.add("show");
+    if (controllers.has(nid)) node.classList.add("ctrl");
+    if (responders.has(nid)) node.classList.add("resp");
+    if (controllers.has(nid) && responders.has(nid)) node.classList.add("both");
+  });
+  document.querySelectorAll(".edge").forEach(edge => edge.classList.add("dim"));
+
+  scene.controllers.forEach(ctrl => {
+    scene.responders.forEach(resp => {
+      if (ctrl[0] !== resp) drawSceneEdge(ctrl[0], resp);
+    });
+  });
+
+  document.querySelectorAll('.scene[data-id="' + id + '"]').forEach(row =>
+    row.classList.add("active"));
+  showScene(scene);
+  fitTo([...members]);
+  if (push) setHash("#scene=" + encodeURIComponent(id));
+}
+
+function selectDevice(id, push = true) {
+  const node = NODE[id];
+  if (!node) return;
+  clearNodeClasses();
+  const neighbours = new Set([id]);
+  DATA.edges.forEach(edge => {
+    if (edge.c === id) neighbours.add(edge.r);
+    if (edge.r === id) neighbours.add(edge.c);
+  });
+  document.querySelectorAll(".node").forEach(group => {
+    const nid = group.dataset.id;
+    if (nid === id) group.classList.add("sel", "show");
+    else if (neighbours.has(nid)) group.classList.add("show");
+    else group.classList.add("dim");
+  });
+  document.querySelectorAll(".edge").forEach(edge => {
+    if (edge.dataset.c === id || edge.dataset.r === id) return;
+    edge.classList.add("dim");
+  });
+  DATA.scenes.forEach(scene => {
+    if (scene.controllers.some(c => c[0] === id) || scene.responders.includes(id)) {
+      document.querySelectorAll('.scene[data-id="' + scene.id + '"]')
+        .forEach(row => row.classList.add("related"));
+    }
+  });
+  showDevice(node);
+  if (id === MODEM) fitAll();
+  else fitTo([id, ...[...neighbours].filter(n => n !== MODEM)]);
+  if (push) setHash("#device=" + encodeURIComponent(id));
+}
+
+// -------------------------------------------------------------- details
+function badge(role) {
+  return '<span class="badge ' + role + '">' + (role === "controller" ? "C" : "R") +
+    "</span>";
+}
+
+function memberRow(id, roles, group) {
+  const node = NODE[id] || {name: id};
+  const noCfg = node.configured === false && !node.phantom
+    ? ' <span class="pill warn">no config</span>' : "";
+  return '<div class="member" data-device="' + esc(id) + '">' +
+    '<span class="roles">' + roles.map(badge).join("") + "</span>" +
+    '<span class="mname">' + esc(node.name) + noCfg + "</span>" +
+    '<span class="addr">' + esc(id) + (group ? " \u00b7 g" + group : "") +
+    "</span></div>";
+}
+
+function bindMemberRows() {
+  details.querySelectorAll("[data-device]").forEach(row => {
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      selectDevice(row.dataset.device);
+    });
+  });
+}
+
+function commandRow(item) {
+  const risk = item.risk || "read";
+  const command = item.command || "";
+  return '<div class="cmd"><span class="risk ' + risk + '">' + risk + '</span>' +
+    '<div class="cmd-body">' +
+    (item.label ? '<div class="cmd-label">' + esc(item.label) + '</div>' : '') +
+    '<code>' + esc(command) + '</code></div>' +
+    '<button class="copy" type="button" data-cmd="' + esc(command) + '">copy</button></div>';
+}
+
+function issueBlock(item) {
+  return '<details class="issue ' + item.severity + '">' +
+    '<summary><span class="sevdot ' + item.severity + '"></span>' +
+    esc(item.message) + '</summary>' +
+    '<p class="why">' + esc(item.why) + '</p>' +
+    (item.checks && item.checks.length
+      ? '<h4>Check</h4>' + item.checks.map(commandRow).join("") : "") +
+    (item.fixes && item.fixes.length
+      ? '<h4>Fix</h4>' + item.fixes.map(commandRow).join("") : "") +
+    (item.guard ? '<p class="guard">' + esc(item.guard) + '</p>' : "") +
+    '</details>';
+}
+
+function bindCopy(root) {
+  root.querySelectorAll("button.copy").forEach(button => {
+    button.addEventListener("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const text = button.dataset.cmd || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "copied";
+      } catch (err) {
+        const code = button.parentElement.querySelector("code");
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.textContent = "selected";
+      }
+      setTimeout(() => { button.textContent = "copy"; }, 1200);
+    });
+  });
+}
+
+function showScene(scene) {
+  const controllers = new Set(scene.controllers.map(c => c[0]));
+  const responders = new Set(scene.responders);
+  const rows = scene.responders.map(id => {
+    const roles = [];
+    if (controllers.has(id)) roles.push("controller");
+    if (responders.has(id)) roles.push("responder");
+    return memberRow(id, roles, null);
+  }).join("");
+  details.innerHTML =
+    '<div class="eyebrow">' + scene.kind + " scene" +
+    (scene.declared ? "" : " \u00b7 unmanaged") + "</div>" +
+    "<h2>" + esc(scene.label) + "</h2>" +
+    '<div class="sub">' + scene.controllers.length + " controller(s) \u00b7 " +
+    scene.responders.length + " responder(s)</div>" +
+    "<h3>Controllers</h3>" +
+    scene.controllers.map(c => memberRow(c[0], ["controller"], c[1])).join("") +
+    "<h3>Responders</h3>" + rows +
+    (scene.warnings.length
+      ? "<h3>Issues</h3>" + scene.warnings.map(issueBlock).join("")
+      : "");
+  bindMemberRows();
+  bindCopy(details);
+}
+
+function showDevice(node) {
+  if (node.id === MODEM) {
+    details.innerHTML =
+      '<div class="eyebrow">modem</div><h2>modem ' + esc(node.id) + "</h2>" +
+      '<div class="sub">' + DATA.meta.devices + " devices \u00b7 " +
+      DATA.meta.links + " links \u00b7 " + DATA.meta.scenes + " scenes</div>" +
+      "<p>Click any scene on the left, or click a device on the ring. " +
+      "Orange edges are the selected scene; gold rings are controllers, " +
+      "orange rings are responders.</p>";
+    return;
+  }
+  const scenes = DATA.scenes.filter(s =>
+    s.controllers.some(c => c[0] === node.id) || s.responders.includes(node.id));
+  const controls = DATA.edges.filter(e => e.c === node.id && e.kind !== "pair");
+  const controlledBy = DATA.edges.filter(e => e.r === node.id && e.kind !== "pair");
+  const pairing = DATA.edges.find(e => e.kind === "pair" && e.r === node.id);
+  const issues = (DATA.device_issues && DATA.device_issues[node.id]) || [];
+
+  details.innerHTML =
+    '<div class="eyebrow">' + esc(node.family) + " \u00b7 " + esc(node.model) + "</div>" +
+    "<h2>" + esc(node.name) +
+    (node.configured === false && !node.phantom
+      ? ' <span class="pill warn">not in config.yaml</span>' : "") +
+    "</h2>" +
+    '<div class="addr">' + esc(node.id) + "</div>" +
+    '<div class="kv"><div>pairing</div><div>' + esc(node.pairing) +
+      (node.one_way ? ' <span class="pill oneway">one-way</span>' : "") +
+      (pairing && !pairing.complete ? ' <span class="pill warn">incomplete</span>' : "") +
+    "</div><div>scenes</div><div>" + node.scenes + "</div>" +
+    "<div>buttons</div><div>" + node.buttons + "</div></div>" +
+    (issues.length ? "<h3>Issues</h3>" + issues.map(issueBlock).join("") : "") +
+    "<h3>Links to</h3>" +
+    (controls.length
+      ? controls.map(e => memberRow(e.r, ["responder"], e.g)).join("")
+      : '<div class="sub">none</div>') +
+    "<h3>Linked from</h3>" +
+    (controlledBy.length
+      ? controlledBy.map(e => memberRow(e.c, ["controller"], e.g)).join("")
+      : '<div class="sub">none</div>') +
+    "<h3>Scenes</h3>" +
+    (scenes.length
+      ? scenes.map(s => '<div class="member" data-scene="' + s.id + '">' +
+          '<span class="roles">' + (s.kind === "modem" ? "M" : "B") + "</span>" +
+          '<span class="mname">' + esc(s.label) + "</span>" +
+          '<span class="addr">' + s.responders.length + "r</span></div>").join("")
+      : '<div class="sub">none</div>');
+
+  bindMemberRows();
+  bindCopy(details);
+  details.querySelectorAll("[data-scene]").forEach(row => {
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      selectScene(row.dataset.scene);
+    });
+  });
+}
+
+function showOverview() {
+  const issues = DATA.scenes.filter(s => s.warnings.length).length;
+  details.innerHTML =
+    '<div class="eyebrow">Overview</div><h2>Link map</h2>' +
+    '<div class="sub">' + DATA.meta.devices + " devices \u00b7 " +
+    DATA.meta.links + " links \u00b7 " + DATA.meta.scenes + " scenes</div>" +
+    "<p>Pick a scene on the left to highlight its controllers, responders " +
+    "and the links between them. Click a device to see its scenes and " +
+    "connections.</p>" +
+    (issues ? '<p class="pill warn">' + issues + " scene(s) have issues</p>" : "") +
+    '<div class="kv"><div>modem</div><div>' + esc(MODEM) + "</div>" +
+    "<div>generated</div><div>" + esc(DATA.meta.generated) + "</div></div>";
+}
+
+// --------------------------------------------------------------- legend
+const legend = document.getElementById("legend");
+Object.keys(COLORS).filter(f => f !== "other" && f !== "modem").forEach(family => {
+  const span = document.createElement("span");
+  span.innerHTML = '<i style="background:' + COLORS[family] + '"></i>' + family;
+  legend.appendChild(span);
+});
+const rings = document.createElement("span");
+rings.innerHTML = '<i style="background:#fff;border:2px solid #1D4ED8"></i>controller';
+legend.appendChild(rings);
+const rings2 = document.createElement("span");
+rings2.innerHTML = '<i style="background:#fff;border:2px solid #EA580C"></i>responder';
+legend.appendChild(rings2);
+const keyLink = document.createElement("span");
+keyLink.innerHTML = '<a href="#" id="legendKey" class="key-link">full key</a>';
+legend.appendChild(keyLink);
+
+// ------------------------------------------------------------------ key
+const keyOverlay = document.getElementById("keyOverlay");
+const keyFamilies = document.getElementById("keyFamilies");
+Object.keys(COLORS).filter(f => f !== "modem").forEach(family => {
+  const row = document.createElement("div");
+  row.className = "key-row";
+  row.innerHTML = '<span class="sample"><i class="fdot" style="background:' +
+    COLORS[family] + '"></i></span><span>' + family + "</span>";
+  keyFamilies.appendChild(row);
+});
+function openKey() { keyOverlay.classList.remove("hidden"); }
+function closeKey() { keyOverlay.classList.add("hidden"); }
+document.getElementById("keyBtn").addEventListener("click", openKey);
+document.getElementById("keyClose").addEventListener("click", closeKey);
+keyOverlay.addEventListener("click", event => {
+  if (event.target === keyOverlay) closeKey();
+});
+document.getElementById("legendKey").addEventListener("click", event => {
+  event.preventDefault();
+  openKey();
+});
+
+// ------------------------------------------------------------- controls
+svg.addEventListener("wheel", event => {
+  if (!keyOverlay.classList.contains("hidden")) return;
+  event.preventDefault();
+  zoomAt(svgPoint(event), event.deltaY < 0 ? 0.86 : 1.16);
+}, {passive: false});
+
+svg.addEventListener("pointerdown", event => {
+  if (event.button !== 0) return;
+  stopAnim();
+  panStart = {x: event.clientX, y: event.clientY, vx: view.x, vy: view.y,
+              scale: svg.getScreenCTM().a, moved: false};
+});
+window.addEventListener("pointermove", event => {
+  if (!panStart) return;
+  const dx = event.clientX - panStart.x;
+  const dy = event.clientY - panStart.y;
+  if (!panStart.moved && Math.abs(dx) + Math.abs(dy) < 8) return;
+  if (!panStart.moved) {
+    panStart.moved = true;
+    svg.classList.add("panning");
+  }
+  view.x = panStart.vx - dx / panStart.scale;
+  view.y = panStart.vy - dy / panStart.scale;
+  applyView();
+});
+function endPan() {
+  if (!panStart) return;
+  svg.classList.remove("panning");
+  if (panStart.moved) {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 250);
+  }
+  panStart = null;
+}
+window.addEventListener("pointerup", endPan);
+window.addEventListener("pointercancel", endPan);
+
+document.getElementById("zoomIn").addEventListener("click", () => {
+  stopAnim(); zoomCenter(0.8);
+});
+document.getElementById("zoomOut").addEventListener("click", () => {
+  stopAnim(); zoomCenter(1.25);
+});
+document.getElementById("zoomFit").addEventListener("click", fitAll);
+
+document.getElementById("toggle-pair").addEventListener("change", event => {
+  edgeLayer.classList.toggle("hide-pair", !event.target.checked);
+});
+document.getElementById("toggle-device").addEventListener("change", event => {
+  edgeLayer.classList.toggle("hide-device", !event.target.checked);
+});
+document.getElementById("toggle-orphan").addEventListener("change", event => {
+  nodeLayer.classList.toggle("hide-orphan", !event.target.checked);
+});
+search.addEventListener("input", renderSceneList);
+window.addEventListener("keydown", event => {
+  if (!keyOverlay.classList.contains("hidden")) {
+    if (event.key === "Escape") closeKey();
+    return;
+  }
+  if (event.key === "Escape") { clearSelection(); return; }
+  if (event.target && event.target.matches("input, textarea")) return;
+  if (event.key === "+" || event.key === "=") zoomCenter(0.8);
+  else if (event.key === "-") zoomCenter(1.25);
+  else if (event.key === "0" || event.key === "f" || event.key === "F") fitAll();
+});
+window.addEventListener("hashchange", applyHash);
+
+function applyHash() {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash.startsWith("scene=")) selectScene(hash.slice(6), false);
+  else if (hash.startsWith("device=")) selectDevice(hash.slice(7), false);
+  else clearSelection();
+}
+
+document.getElementById("stats").textContent =
+  DATA.meta.devices + " devices \u00b7 " + DATA.meta.links + " links \u00b7 " +
+  DATA.meta.scenes + " scenes";
+
+renderSceneList();
+if (location.hash) applyHash(); else showOverview();
+</script>
+</body>
+</html>

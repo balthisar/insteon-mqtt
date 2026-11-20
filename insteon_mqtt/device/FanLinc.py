@@ -366,6 +366,21 @@ class FanLinc(Dimmer):
                         msg.cmd1)
 
     #-----------------------------------------------------------------------
+    def group_cmd_local_group(self, entry):
+        """Get the Local Group Affected by this Group Command
+
+        The FanLinc is a multi-group device, so the local group (1 for the
+        light, 2 for the fan) has to be decoded from the entry data.  This
+        matches what handle_group_cmd() does for the fan group.
+
+        Args:
+          entry (DeviceEntry):  The local db entry for this group command.
+        Returns:
+          group (int):  The local group affected
+        """
+        return entry.data[2]
+
+    #-----------------------------------------------------------------------
     def link_data(self, is_controller, group, data=None):
         """Create default device 3 byte link data.
 

@@ -189,8 +189,9 @@ class Scene(Base):
         reason = reason if reason else on_off.REASON_DEVICE
 
         # Only these devices can use a 0-255 dimmer level.  Other responder
-        # types (switches, relays, etc) are just turned on or off.
-        level_types = ("dimmer", "keypad_linc")
+        # types (switches, relays, etc) are just turned on or off.  The
+        # FanLinc light (group 1) and fan (group 2) both decode the level.
+        level_types = ("dimmer", "fan_linc", "keypad_linc")
 
         seq = CommandSeq(self, "Scene set complete", on_done,
                          error_stop=False, name="SceneSet")

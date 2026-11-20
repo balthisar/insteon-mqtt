@@ -80,11 +80,12 @@ class Test_Scene_Set_Function():
     """Tests for the Scene.scene_set command."""
 
     def make_scene(self, tmpdir, resp_cls=None, resp_data=None,
-                   add_resp_entry=True):
-        """Create a main dimmer and a responder linked for group 1."""
+                   add_resp_entry=True, group=0x01, main_cls=None):
+        """Create a main controller and a responder linked for a group."""
         protocol = H.main.MockProtocol()
         modem = H.main.MockModem(tmpdir)
-        main = Dimmer(protocol, modem, IM.Address(0x01, 0x02, 0x03), "main")
+        main_cls = main_cls if main_cls else Dimmer
+        main = main_cls(protocol, modem, IM.Address(0x01, 0x02, 0x03), "main")
 
         resp_cls = resp_cls if resp_cls else IM.device.Dimmer
         resp = resp_cls(protocol, modem, IM.Address(0x04, 0x05, 0x06),
@@ -92,19 +93,19 @@ class Test_Scene_Set_Function():
         modem.add(main)
         modem.add(resp)
 
-        # Main is the controller of the responder for group 1.
+        # Main is the controller of the responder for the group.
         flags = Msg.DbFlags(in_use=True, is_controller=True,
                             is_last_rec=False)
-        entry = IM.db.DeviceEntry(resp.addr, 0x01, 0x0ff7, flags,
-                                  bytes([0x03, 0x00, 0x01]))
+        entry = IM.db.DeviceEntry(resp.addr, group, 0x0ff7, flags,
+                                  bytes([0x03, 0x00, group]))
         main.db.add_entry(entry, save=False)
 
         # Responder entry on the linked device unless asked to skip it.
         if add_resp_entry:
             flags = Msg.DbFlags(in_use=True, is_controller=False,
                                 is_last_rec=False)
-            data = bytes(resp_data if resp_data else [0xff, 0x1f, 0x01])
-            entry = IM.db.DeviceEntry(main.addr, 0x01, 0x0ff7, flags, data)
+            data = bytes(resp_data if resp_data else [0xff, 0x1f, group])
+            entry = IM.db.DeviceEntry(main.addr, group, 0x0ff7, flags, data)
             resp.db.add_entry(entry, save=False)
 
         return protocol, modem, main, resp
@@ -171,6 +172,37 @@ class Test_Scene_Set_Function():
                 call(resp.set, is_on=True, group=0x03, level=128,
                      reason='scene'),
             ])
+
+    def test_fan_linc_light(self, tmpdir):
+        # The FanLinc light (group 1) is dimmed to the requested level.
+        protocol, modem, main, resp = self.make_scene(
+            tmpdir, resp_cls=IM.device.FanLinc)
+        with mock.patch.object(IM.CommandSeq, 'add') as mocked:
+            main.scene_set(level=128)
+            mocked.assert_has_calls([
+                call(main.set, is_on=True, group=0x01, level=128,
+                     reason='device'),
+                call(resp.set, is_on=True, group=0x01, level=128,
+                     reason='scene'),
+            ])
+            assert mocked.call_count == 2
+
+    def test_fan_linc_fan(self, tmpdir):
+        # A fan scene (group 2) must set the FanLinc fan group, not its
+        # light, and must pass the level through.
+        protocol, modem, main, resp = self.make_scene(
+            tmpdir, resp_cls=IM.device.FanLinc, group=0x02,
+            resp_data=[0xff, 0x00, 0x02],
+            main_cls=IM.device.KeypadLincDimmer)
+        with mock.patch.object(IM.CommandSeq, 'add') as mocked:
+            main.scene_set(level=128, group=0x02)
+            mocked.assert_has_calls([
+                call(main.set, is_on=True, group=0x02, level=128,
+                     reason='device'),
+                call(resp.set, is_on=True, group=0x02, level=128,
+                     reason='scene'),
+            ])
+            assert mocked.call_count == 2
 
     def test_invalid_level(self, tmpdir):
         protocol, modem, main, resp = self.make_scene(tmpdir)

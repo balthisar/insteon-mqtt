@@ -480,7 +480,9 @@ databases.
 The responders are found using the cached all link database of this device,
 so the database must be up to date.  Run a
 [refresh](#refresh-the-device-state-and-download-its-all-link-database) if
-the links have changed.
+the links have changed.  The responders must also be configured in
+Insteon-MQTT and have their own cached databases updated, otherwise they are
+skipped and a message is logged.
 
 Args:
 - level = The dimmer level to set, 0-255.  0 turns the scene off.
@@ -493,6 +495,27 @@ Args:
    { "cmd": "scene_set", "level": 0-255, ["group" : group],
    ["reason" : "..."] }
    ```
+
+#### Scene set input topics
+
+Like the scene and level commands, `scene_set` is also available as a
+first-class MQTT input topic.  The default topics are:
+
+- `insteon/<address>/scene_set` for switches, dimmers, and FanLincs (the
+  FanLinc light is group 1; pass `"group" : 2` to control the fan).
+- `insteon/<address>/scene_set/<button>` for KeypadLinc buttons.
+
+They can be changed with the `scene_set_topic`/`scene_set_payload` settings
+(or `btn_scene_set_topic`/`btn_scene_set_payload` for KeypadLinc) in the
+device MQTT configuration.  The rendered topic names are available to
+[discovery templates and overrides](discovery_customization_config.md) as
+`{{scene_set_topic}}` and `{{btn_scene_set_topic_N}}`.
+
+The default payload accepts the explicit form above, a Home Assistant light
+style payload (`{ "state" : "ON"/"OFF", "brightness" : 0-255 }`), or a plain
+`ON`/`OFF`.  In all cases the level is passed to the scene; a level of 0
+turns it off.  A `group` in the payload overrides the group bound to the
+topic.
 
 This command can also be run from the command line:
 

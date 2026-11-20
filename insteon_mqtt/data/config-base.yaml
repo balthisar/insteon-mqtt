@@ -378,6 +378,40 @@ mqtt:
                       {% endif %}
                     }'
 
+    # Input scene set command.  This sets this device and all of the
+    # responders in a scene group to the same level using direct commands.
+    # Unlike the scene command above, it does not send an all link broadcast,
+    # so the responders are set to the requested level instead of the level
+    # stored in their own databases.  The output of passing the payload
+    # through the template must match the following:
+    #   { "level" : 0-255, ["group" : GROUP], ["reason" : "..."] }
+    # where:
+    #   LEVEL = 0->255 dimmer level.  0 turns the scene off.
+    #   GROUP = the scene group (button) to set.  Defaults to 1.
+    # For convenience, HomeAssistant light style payloads are also accepted:
+    #   { "state" : "ON"/"OFF", ["brightness" : LEVEL] }
+    # as are plain on/off payloads.  The responders always report the 'scene'
+    # reason; the optional reason sets this device's state reason.
+    # Available variables for templating are:
+    #   value = the input payload
+    #   json = the input payload converted to json.  Use json.VAR to extract
+    #          a variable from a json payload.
+    scene_set_topic: 'insteon/{{address}}/scene_set'
+    scene_set_payload: >-
+      { "level" :
+      {%- if json and json.level is defined -%}{{ json.level }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'off' -%}0
+      {%- elif json and json.state is defined and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'on' -%}255
+      {%- elif json and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif value is defined and value|string|lower == 'off' -%}0
+      {%- elif value is defined and value|string|lower == 'on' -%}255
+      {%- else -%}{{ value }}
+      {%- endif -%}
+      {%- if json and json.group is defined -%}, "group" : {{ json.group }}{%- endif -%}
+      {%- if json and json.reason is defined -%}, "reason" : "{{ json.reason }}"{%- endif -%}
+      }
+
     # Discovery Entities - Used as part of HomeAssistant MQTT Discovery
     discovery_entities:
       switch:
@@ -553,6 +587,40 @@ mqtt:
                           , "level" : {{json.brightness}}
                       {% endif %}
                     }'
+
+    # Input scene set command.  This sets this device and all of the
+    # responders in a scene group to the same level using direct commands.
+    # Unlike the scene command above, it does not send an all link broadcast,
+    # so the responders are set to the requested level instead of the level
+    # stored in their own databases.  The output of passing the payload
+    # through the template must match the following:
+    #   { "level" : 0-255, ["group" : GROUP], ["reason" : "..."] }
+    # where:
+    #   LEVEL = 0->255 dimmer level.  0 turns the scene off.
+    #   GROUP = the scene group (button) to set.  Defaults to 1.
+    # For convenience, HomeAssistant light style payloads are also accepted:
+    #   { "state" : "ON"/"OFF", ["brightness" : LEVEL] }
+    # as are plain on/off payloads.  The responders always report the 'scene'
+    # reason; the optional reason sets this device's state reason.
+    # Available variables for templating are:
+    #   value = the input payload
+    #   json = the input payload converted to json.  Use json.VAR to extract
+    #          a variable from a json payload.
+    scene_set_topic: 'insteon/{{address}}/scene_set'
+    scene_set_payload: >-
+      { "level" :
+      {%- if json and json.level is defined -%}{{ json.level }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'off' -%}0
+      {%- elif json and json.state is defined and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'on' -%}255
+      {%- elif json and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif value is defined and value|string|lower == 'off' -%}0
+      {%- elif value is defined and value|string|lower == 'on' -%}255
+      {%- else -%}{{ value }}
+      {%- endif -%}
+      {%- if json and json.group is defined -%}, "group" : {{ json.group }}{%- endif -%}
+      {%- if json and json.reason is defined -%}, "reason" : "{{ json.reason }}"{%- endif -%}
+      }
 
     # Discovery Entities - Used as part of HomeAssistant MQTT Discovery
     discovery_entities:
@@ -1557,6 +1625,36 @@ mqtt:
                               , "level" : {{json.brightness}}
                           {% endif %}
                         }'
+
+    # Input scene set command.  Like the scene command above, but the
+    # responders in the button's scene are set to the requested level using
+    # direct commands instead of the level stored in their own databases.
+    # The button in the topic selects the scene group.  The output of passing
+    # the payload through the template must match:
+    #   { "level" : 0-255, ["group" : GROUP], ["reason" : "..."] }
+    # or a HomeAssistant light style payload:
+    #   { "state" : "ON"/"OFF", ["brightness" : LEVEL] }
+    # or a plain on/off payload.  See the scene_set_payload comments in the
+    # switch section for the full description.
+    # Available variables for templating are:
+    #   value = the input payload
+    #   json = the input payload converted to json.  Use json.VAR to extract
+    #          a variable from a json payload.
+    btn_scene_set_topic: 'insteon/{{address}}/scene_set/{{button}}'
+    btn_scene_set_payload: >-
+      { "level" :
+      {%- if json and json.level is defined -%}{{ json.level }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'off' -%}0
+      {%- elif json and json.state is defined and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif json and json.state is defined and json.state|string|lower == 'on' -%}255
+      {%- elif json and json.brightness is defined -%}{{ json.brightness }}
+      {%- elif value is defined and value|string|lower == 'off' -%}0
+      {%- elif value is defined and value|string|lower == 'on' -%}255
+      {%- else -%}{{ value }}
+      {%- endif -%}
+      {%- if json and json.group is defined -%}, "group" : {{ json.group }}{%- endif -%}
+      {%- if json and json.reason is defined -%}, "reason" : "{{ json.reason }}"{%- endif -%}
+      }
 
     # Discovery Entities - Used as part of HomeAssistant MQTT Discovery
     #

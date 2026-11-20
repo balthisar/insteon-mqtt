@@ -4,8 +4,12 @@
 #
 # pylint: disable=redefined-outer-name
 #===========================================================================
+import json
+import os
 import time
+from unittest import mock
 import pytest
+import yaml
 import insteon_mqtt as IM
 import helpers as H
 
@@ -46,22 +50,26 @@ class Test_Dimmer:
         mdev, addr, link = setup.getAll(['mdev', 'addr', 'link'])
 
         mdev.subscribe(link, 2)
-        assert len(link.client.sub) == 3
+        assert len(link.client.sub) == 4
         assert link.client.sub[0] == dict(
             topic='insteon/%s/set' % addr.hex, qos=2)
         assert link.client.sub[1] == dict(
             topic='insteon/%s/level' % addr.hex, qos=2)
         assert link.client.sub[2] == dict(
             topic='insteon/%s/scene' % addr.hex, qos=2)
+        assert link.client.sub[3] == dict(
+            topic='insteon/%s/scene_set' % addr.hex, qos=2)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == 3
+        assert len(link.client.unsub) == 4
         assert link.client.unsub[0] == dict(
             topic='insteon/%s/set' % addr.hex)
         assert link.client.unsub[1] == dict(
             topic='insteon/%s/level' % addr.hex)
         assert link.client.unsub[2] == dict(
             topic='insteon/%s/scene' % addr.hex)
+        assert link.client.unsub[3] == dict(
+            topic='insteon/%s/scene_set' % addr.hex)
 
     #-----------------------------------------------------------------------
     def test_template(self, setup):
@@ -137,10 +145,13 @@ class Test_Dimmer:
             'manual_state_topic': None,
             'on_off_topic': 'insteon/01.02.03/set',
             'scene_topic': 'insteon/01.02.03/scene',
+            'scene_set_topic': 'insteon/01.02.03/scene_set',
             'state_topic': 'insteon/01.02.03/state',
             'level_topic': 'insteon/01.02.03/level'
         }
         assert len(mdev.extra_topic_nums) == 0
+        data = mdev.discovery_template_data()
+        assert data['scene_set_topic'] == 'insteon/01.02.03/scene_set'
 
     #-----------------------------------------------------------------------
     def test_config(self, setup):
@@ -497,5 +508,90 @@ class Test_Dimmer:
         assert proto.sent[0].msg.data[1] == 0x01  #use_on_level
         assert proto.sent[0].msg.data[2] == 0x80  #on_level
         proto.clear()
+
+    #-----------------------------------------------------------------------
+    def test_scene_set_default_payload(self, setup):
+        mdev, link, dev = setup.getAll(['mdev', 'link', 'dev'])
+
+        # The default topic and payload are used when the config does not
+        # set them.  The payload accepts the explicit scene_set form,
+        # HomeAssistant light style payloads, and plain on/off.
+        mdev.load_config({'dimmer': {}}, qos=2)
+        mdev.subscribe(link, 2)
+        topic = 'insteon/%s/scene_set' % dev.addr.hex
+
+        with mock.patch.object(dev, 'scene_set') as mocked:
+            link.publish(topic, b'{"level": 128, "group": 1, '
+                               b'"reason": "test"}', 2, retain=False)
+            mocked.assert_called_once_with(level=128, group=1,
+                                           reason="test")
+            mocked.reset_mock()
+
+            link.publish(topic, b'{"state": "ON", "brightness": 102}', 2,
+                         retain=False)
+            mocked.assert_called_once_with(level=102, group=1, reason=None)
+            mocked.reset_mock()
+
+            link.publish(topic, b'{"state": "OFF"}', 2, retain=False)
+            mocked.assert_called_once_with(level=0, group=1, reason=None)
+            mocked.reset_mock()
+
+            link.publish(topic, b'{"state": "ON"}', 2, retain=False)
+            mocked.assert_called_once_with(level=255, group=1, reason=None)
+            mocked.reset_mock()
+
+            link.publish(topic, b'ON', 2, retain=False)
+            mocked.assert_called_once_with(level=255, group=1, reason=None)
+            mocked.reset_mock()
+
+            link.publish(topic, b'OFF', 2, retain=False)
+            mocked.assert_called_once_with(level=0, group=1, reason=None)
+            mocked.reset_mock()
+
+            # Invalid level and unsupported group must not reach the device.
+            link.publish(topic, b'{"level": 300}', 2, retain=False)
+            mocked.assert_not_called()
+            link.publish(topic, b'{"level": 128, "group": 2}', 2,
+                         retain=False)
+            mocked.assert_not_called()
+
+    #-----------------------------------------------------------------------
+    def test_scene_set_config_base_payload(self, setup):
+        # The payload shipped in config-base.yaml must parse and render.
+        mdev, link, dev = setup.getAll(['mdev', 'link', 'dev'])
+        path = os.path.join(os.path.dirname(IM.__file__), 'data',
+                            'config-base.yaml')
+        with open(path) as f:
+            base = yaml.safe_load(f)
+
+        mdev.load_config(base['mqtt'], qos=2)
+        mdev.subscribe(link, 2)
+        topic = 'insteon/%s/scene_set' % dev.addr.hex
+
+        with mock.patch.object(dev, 'scene_set') as mocked:
+            link.publish(topic, b'{"state": "ON", "brightness": 102}', 2,
+                         retain=False)
+            mocked.assert_called_once_with(level=102, group=1, reason=None)
+
+    #-----------------------------------------------------------------------
+    def test_scene_set_discovery_override(self, setup):
+        # A discovery override can repoint an entity at the scene_set topic.
+        mdev, link, dev = setup.getAll(['mdev', 'link', 'dev'])
+        path = os.path.join(os.path.dirname(IM.__file__), 'data',
+                            'config-base.yaml')
+        with open(path) as f:
+            base = yaml.safe_load(f)
+
+        dev.config_extra['discovery_overrides'] = {
+            'dimmer': {'config': {'cmd_t': '{{scene_set_topic}}'}}}
+        mdev.mqtt.discovery_enabled = True
+        mdev.mqtt.discovery_topic_base = 'homeassistant'
+        mdev.load_config(base['mqtt'], qos=2)
+        mdev.publish_discovery()
+
+        payloads = [json.loads(p.payload) for p in link.client.pub
+                    if p.topic.startswith('homeassistant/light/')]
+        assert payloads
+        assert payloads[0]['cmd_t'] == 'insteon/01.02.03/scene_set'
 
 #===========================================================================

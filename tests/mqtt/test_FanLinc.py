@@ -5,6 +5,7 @@
 # pylint: disable=redefined-outer-name
 #===========================================================================
 import time
+from unittest import mock
 import pytest
 import insteon_mqtt as IM
 import helpers as H
@@ -46,7 +47,7 @@ class Test_FanLinc:
         mdev, addr, link = setup.getAll(['mdev', 'addr', 'link'])
 
         mdev.subscribe(link, 2)
-        assert len(link.client.sub) == 4
+        assert len(link.client.sub) == 5
         assert link.client.sub[0] == dict(
             topic='insteon/%s/set' % addr.hex, qos=2)
         assert link.client.sub[1] == dict(
@@ -54,10 +55,12 @@ class Test_FanLinc:
         assert link.client.sub[2] == dict(
             topic='insteon/%s/scene' % addr.hex, qos=2)
         assert link.client.sub[3] == dict(
+            topic='insteon/%s/scene_set' % addr.hex, qos=2)
+        assert link.client.sub[4] == dict(
             topic='insteon/%s/fan/set' % addr.hex, qos=2)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == 4
+        assert len(link.client.unsub) == 5
         assert link.client.unsub[0] == dict(
             topic='insteon/%s/set' % addr.hex)
         assert link.client.unsub[1] == dict(
@@ -65,6 +68,8 @@ class Test_FanLinc:
         assert link.client.unsub[2] == dict(
             topic='insteon/%s/scene' % addr.hex)
         assert link.client.unsub[3] == dict(
+            topic='insteon/%s/scene_set' % addr.hex)
+        assert link.client.unsub[4] == dict(
             topic='insteon/%s/fan/set' % addr.hex)
 
     #-----------------------------------------------------------------------
@@ -193,6 +198,7 @@ class Test_FanLinc:
             'manual_state_topic': None,
             'on_off_topic': 'insteon/01.02.03/set',
             'scene_topic': 'insteon/01.02.03/scene',
+            'scene_set_topic': 'insteon/01.02.03/scene_set',
             'state_topic': 'insteon/01.02.03/state',
             'level_topic': 'insteon/01.02.03/level',
             'fan_on_off_topic': 'insteon/01.02.03/fan/set',
@@ -427,7 +433,7 @@ class Test_FanLinc:
         assert len(proto.sent) == 0
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == 5
+        assert len(link.client.unsub) == 6
 
     #-----------------------------------------------------------------------
     def test_input_fan_on_off_scene(self, setup):
@@ -485,5 +491,32 @@ class Test_FanLinc:
         cb = proto.sent[0].handler.callback
         assert cb.keywords == {"reason" : "JKL"}
         proto.clear()
+
+    #-----------------------------------------------------------------------
+    def test_input_scene_set(self, setup):
+        mdev, link, proto, dev, addr = setup.getAll(['mdev', 'link', 'proto',
+                                                     'dev', 'addr'])
+
+        qos = 2
+        config = {
+            'dimmer': {
+                'scene_set_topic': 'foo/{{address}}/scene_set',
+                'scene_set_payload': '{ "level" : {{json.level}}, '
+                                     '"group" : {{json.group}} }'},
+            'fan_linc': {}}
+        mdev.load_config(config, qos=qos)
+        mdev.subscribe(link, qos)
+        topic = 'foo/%s/scene_set' % addr.hex
+
+        with mock.patch.object(dev, 'scene_set') as mocked:
+            link.publish(topic, b'{"level": 128, "group": 2}', qos,
+                         retain=False)
+            mocked.assert_called_once_with(level=128, group=2, reason=None)
+            mocked.reset_mock()
+
+            # FanLinc supports groups 1 (light) and 2 (fan), not 3.
+            link.publish(topic, b'{"level": 128, "group": 3}', qos,
+                         retain=False)
+            mocked.assert_not_called()
 
 #===========================================================================

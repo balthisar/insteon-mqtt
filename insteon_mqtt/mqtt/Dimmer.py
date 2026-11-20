@@ -62,6 +62,7 @@ class Dimmer(topic.StateTopic, topic.SceneTopic, topic.ManualTopic,
 
         # Load the various topics
         self.load_scene_data(data, qos)
+        self.load_scene_set_data(data, qos)
         self.load_state_data(data, qos)
         self.load_manual_data(data, qos)
         self.load_set_data(data, qos)
@@ -92,6 +93,7 @@ class Dimmer(topic.StateTopic, topic.SceneTopic, topic.ManualTopic,
         link.subscribe(topic_str, qos, self._input_set_level)
 
         self.scene_subscribe(link, qos)
+        self.scene_set_subscribe(link, qos)
 
     #-----------------------------------------------------------------------
     def unsubscribe(self, link):
@@ -106,6 +108,7 @@ class Dimmer(topic.StateTopic, topic.SceneTopic, topic.ManualTopic,
         link.unsubscribe(topic_str)
 
         self.scene_unsubscribe(link)
+        self.scene_set_unsubscribe(link)
 
     #-----------------------------------------------------------------------
     def _input_set_level(self, client, data, message):

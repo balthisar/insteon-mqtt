@@ -326,6 +326,9 @@ mqtt:
         scene_topic: *mqtt_topic
         scene_payload:
           type: string
+        scene_set_topic: *mqtt_topic
+        scene_set_payload:
+          type: string
         discovery_entities: *discovery_entities
     dimmer:
       type: dict
@@ -345,6 +348,9 @@ mqtt:
           type: string
         scene_topic: *mqtt_topic
         scene_payload:
+          type: string
+        scene_set_topic: *mqtt_topic
+        scene_set_payload:
           type: string
         discovery_entities: *discovery_entities
     battery_sensor:
@@ -492,6 +498,9 @@ mqtt:
           type: string
         btn_scene_topic: *mqtt_topic
         btn_scene_payload:
+          type: string
+        btn_scene_set_topic: *mqtt_topic
+        btn_scene_set_payload:
           type: string
         discovery_entities: *discovery_entities
     io_linc:

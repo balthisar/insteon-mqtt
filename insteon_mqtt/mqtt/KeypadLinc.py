@@ -28,6 +28,8 @@ class KeypadLinc(topic.SetTopic, topic.SceneTopic, topic.StateTopic,
         """
         super().__init__(mqtt, device,
                          scene_topic='insteon/{{address}}/scene/{{button}}',
+                         scene_set_topic='insteon/{{address}}/scene_set/'
+                                          '{{button}}',
                          state_topic='insteon/{{address}}/state/{{button}}',
                          set_topic='insteon/{{address}}/set/{{button}}',
                          **kwargs)
@@ -64,6 +66,9 @@ class KeypadLinc(topic.SetTopic, topic.SceneTopic, topic.StateTopic,
         self.load_scene_data(data, qos,
                              topic='btn_scene_topic',
                              payload='btn_scene_payload')
+        self.load_scene_set_data(data, qos,
+                                 topic='btn_scene_set_topic',
+                                 payload='btn_scene_set_payload')
 
         self.load_set_data(data, qos,
                            topic='btn_on_off_topic',
@@ -85,6 +90,7 @@ class KeypadLinc(topic.SetTopic, topic.SceneTopic, topic.StateTopic,
         for group in range(start_group, 9):
             self.set_subscribe(link, qos, group=group)
             self.scene_subscribe(link, qos, group=group)
+            self.scene_set_subscribe(link, qos, group=group)
 
     #-----------------------------------------------------------------------
     def unsubscribe(self, link):
@@ -96,6 +102,7 @@ class KeypadLinc(topic.SetTopic, topic.SceneTopic, topic.StateTopic,
         for group in range(1, 9):
             self.set_unsubscribe(link, group=group)
             self.scene_unsubscribe(link, group=group)
+            self.scene_set_unsubscribe(link, group=group)
 
     #-----------------------------------------------------------------------
     def discovery_template_data(self, **kwargs):

@@ -14,6 +14,7 @@
       - [Class-level override example: KeypadLinc](#class-level-override-example-keypadlinc)
       - [Class-level override example: Mini Remote Switch](#class-level-override-example-mini-remote-switch)
       - [Class-level override example: multiple classes](#class-level-override-example-multiple-classes)
+    - [Using scene_set in overrides](#using-scene_set-in-overrides)
   - [Entity names for overrides](#entity-names-for-overrides)
     - [Device type 'battery_sensor' entities](#device-type-battery_sensor-entities)
     - [Device type 'dimmer' entities](#device-type-dimmer-entities)
@@ -540,6 +541,57 @@ With all of these overrides in place, this group of eight devices will
 appear in the "Game Room" Area in Home Assistant; only the necessary
 (and useful) entities will appear, and the FanLinc entities will have
 custom names and icons.
+
+### Using scene_set in overrides
+
+`scene_set` sets a device and all of the responders in one of its scene
+groups to the same level using direct commands (see [Set scene
+level](mqtt.md#set-scene-level)).  Every device that supports it exposes
+its rendered input topics to discovery templates:
+
+- `{{scene_set_topic}}` for switches, dimmers and FanLincs.
+- `{{btn_scene_set_topic_N}}` for KeypadLinc buttons 1-9.
+
+These can be used in any `discovery_overrides` `config` block.  The default
+payload accepts the explicit `{"level": N}` form, a Home Assistant light
+style payload (`state`/`brightness`), or a plain `ON`/`OFF`, so most
+overrides do not need a `cmd_tpl`.
+
+For example, to make a dimmer's light entity set every responder in its
+scene rather than only the dimmer itself:
+
+```yaml
+mqtt:
+  dimmer_as_scene:
+    discovery_overrides:
+      dimmer:
+        config:
+          cmd_t: "{{scene_set_topic}}"
+```
+
+A KeypadLinc button can be turned into a fixed-level scene button.  The
+`stat_t`, `val_tpl` and `json_attr_t` settings are removed because button
+entities do not use them:
+
+```yaml
+mqtt:
+  kpl_scene_set:
+    discovery_overrides:
+      button2:
+        component: "button"
+        config:
+          name: "Game Room 40%"
+          cmd_t: "{{btn_scene_set_topic_2}}"
+          pl_prs: '{"level": 102}'
+          stat_t: ""
+          val_tpl: ""
+          json_attr_t: ""
+          json_attr_tpl: ""
+```
+
+No `scene_set` entities are published by default; these variables are only
+used when an override (or a device's own `discovery_entities`) asks for
+them.
 
 ## Entity names for overrides
 

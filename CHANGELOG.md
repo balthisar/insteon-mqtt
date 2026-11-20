@@ -9,6 +9,13 @@
   responders are set to the requested level rather than the level stored in
   their all link databases, and the state change reasons match a scene:
   `device` for the commanded device and `scene` for the responders.
+- Make `scene_set` a first-class MQTT command.  Devices now have
+  `scene_set_topic`/`scene_set_payload` settings (KeypadLinc uses
+  `btn_scene_set_topic`/`btn_scene_set_payload`), and the rendered topics are
+  available to discovery templates and overrides as `{{scene_set_topic}}`
+  and `{{btn_scene_set_topic_N}}`.  The default payload also accepts Home
+  Assistant light style and plain on/off payloads.  No default discovery
+  entities are added, so the new inputs are strictly opt-in.
 
 ## [1.4.0] - Fix Modem Scenes
 

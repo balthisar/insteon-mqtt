@@ -5,6 +5,7 @@
 # pylint: disable=redefined-outer-name
 #===========================================================================
 import time
+from unittest import mock
 import pytest
 import insteon_mqtt as IM
 import helpers as H
@@ -46,18 +47,22 @@ class Test_Switch:
         mdev, addr, link = setup.getAll(['mdev', 'addr', 'link'])
 
         mdev.subscribe(link, 2)
-        assert len(link.client.sub) == 2
+        assert len(link.client.sub) == 3
         assert link.client.sub[0] == dict(
             topic='insteon/%s/set' % addr.hex, qos=2)
         assert link.client.sub[1] == dict(
             topic='insteon/%s/scene' % addr.hex, qos=2)
+        assert link.client.sub[2] == dict(
+            topic='insteon/%s/scene_set' % addr.hex, qos=2)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == 2
+        assert len(link.client.unsub) == 3
         assert link.client.unsub[0] == dict(
             topic='insteon/%s/set' % addr.hex)
         assert link.client.unsub[1] == dict(
             topic='insteon/%s/scene' % addr.hex)
+        assert link.client.unsub[2] == dict(
+            topic='insteon/%s/scene_set' % addr.hex)
 
     #-----------------------------------------------------------------------
     def test_template(self, setup):
@@ -127,9 +132,12 @@ class Test_Switch:
             'manual_state_topic': None,
             'on_off_topic': 'insteon/01.02.03/set',
             'scene_topic': 'insteon/01.02.03/scene',
+            'scene_set_topic': 'insteon/01.02.03/scene_set',
             'state_topic': 'insteon/01.02.03/state'
         }
         assert len(mdev.extra_topic_nums) == 0
+        data = mdev.discovery_template_data()
+        assert data['scene_set_topic'] == 'insteon/01.02.03/scene_set'
 
     #-----------------------------------------------------------------------
     def test_config(self, setup):
@@ -303,5 +311,40 @@ class Test_Switch:
         assert dev.broadcast_reason == "zyx"
         proto.clear()
 
+    #-----------------------------------------------------------------------
+    def test_input_scene_set(self, setup):
+        mdev, link, proto, dev = setup.getAll(['mdev', 'link', 'proto',
+                                               'dev'])
+
+        qos = 2
+        config = {'switch': {
+            'scene_set_topic': 'foo/{{address}}/scene_set',
+            'scene_set_payload': '{ "level" : {{json.level}}'
+                                 '{% if json.group is defined %}'
+                                 ', "group" : {{json.group}}'
+                                 '{% endif %}'
+                                 '{% if json.reason is defined %}'
+                                 ', "reason" : "{{json.reason}}"'
+                                 '{% endif %} }'}}
+        mdev.load_config(config, qos=qos)
+        mdev.subscribe(link, qos)
+        topic = 'foo/%s/scene_set' % dev.addr.hex
+
+        with mock.patch.object(dev, 'scene_set') as mocked:
+            link.publish(topic, b'{"level": 128}', qos, retain=False)
+            mocked.assert_called_once_with(level=128, group=1, reason=None)
+            mocked.reset_mock()
+
+            link.publish(topic, b'{"level": 0, "group": 1, '
+                               b'"reason": "test"}', qos, retain=False)
+            mocked.assert_called_once_with(level=0, group=1, reason="test")
+            mocked.reset_mock()
+
+            link.publish(topic, b'{"level": 300}', qos, retain=False)
+            mocked.assert_not_called()
+
+            link.publish(topic, b'{"level": 128, "group": 2}', qos,
+                         retain=False)
+            mocked.assert_not_called()
 
 #===========================================================================

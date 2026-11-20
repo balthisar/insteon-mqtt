@@ -95,6 +95,7 @@ class KeypadLincDimmer(KeypadLinc):
 
         # Add the Scene Topic
         self.scene_subscribe(link, qos, group=1)
+        self.scene_set_subscribe(link, qos, group=1)
 
         # We need to subscribe to each button topic so we know which one is
         # which.

@@ -46,23 +46,29 @@ class Test_KeypadLinc_sw:
         mdev, addr, link = setup.getAll(['mdev', 'addr', 'link'])
 
         mdev.subscribe(link, 2)
-        assert len(link.client.sub) == 8 * 2
+        assert len(link.client.sub) == 8 * 3
 
         for i in range(8):
             topic = "insteon/%s/set/%d" % (addr.hex, i + 1)
-            assert link.client.sub[i * 2 + 0] == dict(topic=topic, qos=2)
+            assert link.client.sub[i * 3 + 0] == dict(topic=topic, qos=2)
 
             topic = "insteon/%s/scene/%d" % (addr.hex, i + 1)
-            assert link.client.sub[i * 2 + 1] == dict(topic=topic, qos=2)
+            assert link.client.sub[i * 3 + 1] == dict(topic=topic, qos=2)
+
+            topic = "insteon/%s/scene_set/%d" % (addr.hex, i + 1)
+            assert link.client.sub[i * 3 + 2] == dict(topic=topic, qos=2)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == 8 * 2
+        assert len(link.client.unsub) == 8 * 3
         for i in range(8):
             topic = "insteon/%s/set/%d" % (addr.hex, i + 1)
-            assert link.client.unsub[i * 2 + 0] == dict(topic=topic)
+            assert link.client.unsub[i * 3 + 0] == dict(topic=topic)
 
             topic = "insteon/%s/scene/%d" % (addr.hex, i + 1)
-            assert link.client.unsub[i * 2 + 1] == dict(topic=topic)
+            assert link.client.unsub[i * 3 + 1] == dict(topic=topic)
+
+            topic = "insteon/%s/scene_set/%d" % (addr.hex, i + 1)
+            assert link.client.unsub[i * 3 + 2] == dict(topic=topic)
 
     #-----------------------------------------------------------------------
     def test_template(self, setup):
@@ -149,6 +155,15 @@ class Test_KeypadLinc_sw:
             'btn_scene_topic_7': 'insteon/01.02.03/scene/7',
             'btn_scene_topic_8': 'insteon/01.02.03/scene/8',
             'btn_scene_topic_9': 'insteon/01.02.03/scene/9',
+            'btn_scene_set_topic_1': 'insteon/01.02.03/scene_set/1',
+            'btn_scene_set_topic_2': 'insteon/01.02.03/scene_set/2',
+            'btn_scene_set_topic_3': 'insteon/01.02.03/scene_set/3',
+            'btn_scene_set_topic_4': 'insteon/01.02.03/scene_set/4',
+            'btn_scene_set_topic_5': 'insteon/01.02.03/scene_set/5',
+            'btn_scene_set_topic_6': 'insteon/01.02.03/scene_set/6',
+            'btn_scene_set_topic_7': 'insteon/01.02.03/scene_set/7',
+            'btn_scene_set_topic_8': 'insteon/01.02.03/scene_set/8',
+            'btn_scene_set_topic_9': 'insteon/01.02.03/scene_set/9',
             'btn_state_topic_1': 'insteon/01.02.03/state/1',
             'btn_state_topic_2': 'insteon/01.02.03/state/2',
             'btn_state_topic_3': 'insteon/01.02.03/state/3',
@@ -161,6 +176,9 @@ class Test_KeypadLinc_sw:
             'manual_state_topic': None
         }
         assert len(mdev.extra_topic_nums) == 9
+        data = mdev.discovery_template_data()
+        assert data['btn_scene_set_topic_2'] == \
+            'insteon/01.02.03/scene_set/2'
 
     #-----------------------------------------------------------------------
     def test_config(self, setup):

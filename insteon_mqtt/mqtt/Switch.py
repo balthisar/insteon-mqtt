@@ -51,6 +51,7 @@ class Switch(topic.SetTopic, topic.StateTopic, topic.SceneTopic,
 
         # Load the various topics
         self.load_scene_data(data, qos)
+        self.load_scene_set_data(data, qos)
         self.load_state_data(data, qos)
         self.load_manual_data(data, qos)
         self.load_set_data(data, qos)
@@ -69,6 +70,7 @@ class Switch(topic.SetTopic, topic.StateTopic, topic.SceneTopic,
         # On/off command messages.
         self.set_subscribe(link, qos)
         self.scene_subscribe(link, qos)
+        self.scene_set_subscribe(link, qos)
 
     #-----------------------------------------------------------------------
     def unsubscribe(self, link):
@@ -79,5 +81,6 @@ class Switch(topic.SetTopic, topic.StateTopic, topic.SceneTopic,
         """
         self.set_unsubscribe(link)
         self.scene_unsubscribe(link)
+        self.scene_set_unsubscribe(link)
 
     #-----------------------------------------------------------------------

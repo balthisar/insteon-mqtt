@@ -4,7 +4,11 @@
 #
 # pylint: disable=redefined-outer-name
 #===========================================================================
+import json
+import os
 import time
+from unittest import mock
+import yaml
 import pytest
 import insteon_mqtt as IM
 import helpers as H
@@ -50,11 +54,13 @@ class Test_KeypadLinc:
             "insteon/%s/set/1" % addr.hex,
             "insteon/%s/level" % addr.hex,
             "insteon/%s/scene/1" % addr.hex,
+            "insteon/%s/scene_set/1" % addr.hex,
             ]
         for i in range(2, 9):
             topics += [
                 "insteon/%s/set/%d" % (addr.hex, i),
                 "insteon/%s/scene/%d" % (addr.hex, i),
+                "insteon/%s/scene_set/%d" % (addr.hex, i),
                 ]
 
         assert len(link.client.sub) == len(topics)
@@ -62,12 +68,19 @@ class Test_KeypadLinc:
             assert link.client.sub[i] == dict(topic=topics[i], qos=2)
 
         # Unsub in keypad is slightly different order.
-        topics.append(topics.pop(1))
+        unsub_topics = []
+        for i in range(1, 9):
+            unsub_topics += [
+                "insteon/%s/set/%d" % (addr.hex, i),
+                "insteon/%s/scene/%d" % (addr.hex, i),
+                "insteon/%s/scene_set/%d" % (addr.hex, i),
+                ]
+        unsub_topics.append("insteon/%s/level" % addr.hex)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == len(topics)
-        for i in range(len(topics)):
-            assert link.client.unsub[i] == dict(topic=topics[i])
+        assert len(link.client.unsub) == len(unsub_topics)
+        for i in range(len(unsub_topics)):
+            assert link.client.unsub[i] == dict(topic=unsub_topics[i])
 
     #-----------------------------------------------------------------------
     def test_pubsub_same(self, setup):
@@ -83,11 +96,16 @@ class Test_KeypadLinc:
         mdev.load_config(config, qos)
 
         mdev.subscribe(link, 2)
-        topics = []
-        for i in range(1, 9):
+        topics = [
+            "insteon/%s/set/1" % addr.hex,
+            "insteon/%s/scene/1" % addr.hex,
+            "insteon/%s/scene_set/1" % addr.hex,
+            ]
+        for i in range(2, 9):
             topics += [
                 "insteon/%s/set/%d" % (addr.hex, i),
                 "insteon/%s/scene/%d" % (addr.hex, i),
+                "insteon/%s/scene_set/%d" % (addr.hex, i),
                 ]
         assert len(link.client.sub) == len(topics)
         for i in range(len(topics)):
@@ -95,12 +113,19 @@ class Test_KeypadLinc:
 
         # Unsub when same still unsubs from the level even though it's not
         # needed.
-        topics.append(topics[0])
+        unsub_topics = []
+        for i in range(1, 9):
+            unsub_topics += [
+                "insteon/%s/set/%d" % (addr.hex, i),
+                "insteon/%s/scene/%d" % (addr.hex, i),
+                "insteon/%s/scene_set/%d" % (addr.hex, i),
+                ]
+        unsub_topics.append("insteon/%s/set/1" % addr.hex)
 
         mdev.unsubscribe(link)
-        assert len(link.client.unsub) == len(topics)
-        for i in range(len(topics)):
-            assert link.client.unsub[i] == dict(topic=topics[i])
+        assert len(link.client.unsub) == len(unsub_topics)
+        for i in range(len(unsub_topics)):
+            assert link.client.unsub[i] == dict(topic=unsub_topics[i])
 
     #-----------------------------------------------------------------------
     def test_template(self, setup):
@@ -200,6 +225,15 @@ class Test_KeypadLinc:
             'btn_scene_topic_7': 'insteon/01.02.03/scene/7',
             'btn_scene_topic_8': 'insteon/01.02.03/scene/8',
             'btn_scene_topic_9': 'insteon/01.02.03/scene/9',
+            'btn_scene_set_topic_1': 'insteon/01.02.03/scene_set/1',
+            'btn_scene_set_topic_2': 'insteon/01.02.03/scene_set/2',
+            'btn_scene_set_topic_3': 'insteon/01.02.03/scene_set/3',
+            'btn_scene_set_topic_4': 'insteon/01.02.03/scene_set/4',
+            'btn_scene_set_topic_5': 'insteon/01.02.03/scene_set/5',
+            'btn_scene_set_topic_6': 'insteon/01.02.03/scene_set/6',
+            'btn_scene_set_topic_7': 'insteon/01.02.03/scene_set/7',
+            'btn_scene_set_topic_8': 'insteon/01.02.03/scene_set/8',
+            'btn_scene_set_topic_9': 'insteon/01.02.03/scene_set/9',
             'btn_state_topic_1': 'insteon/01.02.03/state/1',
             'btn_state_topic_2': 'insteon/01.02.03/state/2',
             'btn_state_topic_3': 'insteon/01.02.03/state/3',
@@ -212,6 +246,9 @@ class Test_KeypadLinc:
             'manual_state_topic': None
         }
         assert len(mdev.extra_topic_nums) == 9
+        data = mdev.discovery_template_data()
+        assert data['btn_scene_set_topic_2'] == \
+            'insteon/01.02.03/scene_set/2'
 
     #-----------------------------------------------------------------------
     def test_config(self, setup):
@@ -1071,5 +1108,66 @@ class Test_KeypadLinc:
         assert proto.sent[0].msg.data[1] == 0x01  #use_on_level
         assert proto.sent[0].msg.data[2] == 0x80  #on_level
         proto.clear()
+
+    #-----------------------------------------------------------------------
+    def test_input_scene_set(self, setup):
+        mdev, link, proto, dev = setup.getAll(['mdev', 'link', 'proto',
+                                               'dev'])
+
+        qos = 2
+        config = {'keypad_linc': {
+            'btn_scene_set_topic': 'foo/{{address}}/scene_set/{{button}}',
+            'btn_scene_set_payload': '{ "level" : {{json.level}}'
+                                     '{% if json.group is defined %}'
+                                     ', "group" : {{json.group}}'
+                                     '{% endif %} }'}}
+        mdev.load_config(config, qos=qos)
+        mdev.subscribe(link, qos)
+
+        topic = 'foo/%s/scene_set/3' % dev.addr.hex
+        with mock.patch.object(dev, 'scene_set') as mocked:
+            link.publish(topic, b'{"level": 64}', qos, retain=False)
+            mocked.assert_called_once_with(level=64, group=3, reason=None)
+            mocked.reset_mock()
+
+            # A payload group overrides the button bound to the topic.
+            link.publish(topic, b'{"level": 64, "group": 5}', qos,
+                         retain=False)
+            mocked.assert_called_once_with(level=64, group=5, reason=None)
+            mocked.reset_mock()
+
+            # Groups 1-9 are supported, anything else is rejected.
+            link.publish(topic, b'{"level": 64, "group": 10}', qos,
+                         retain=False)
+            mocked.assert_not_called()
+
+    #-----------------------------------------------------------------------
+    def test_scene_set_discovery_override(self, setup):
+        # A per-button override can use the scene_set topic and payload.
+        mdev, link, dev = setup.getAll(['mdev', 'link', 'dev'])
+        path = os.path.join(os.path.dirname(IM.__file__), 'data',
+                            'config-base.yaml')
+        with open(path) as f:
+            base = yaml.safe_load(f)
+
+        dev.config_extra['discovery_overrides'] = {
+            'button2': {'component': 'button',
+                        'config': {
+                            'cmd_t': '{{btn_scene_set_topic_2}}',
+                            'pl_prs': '{"level": 102}',
+                            'stat_t': '', 'val_tpl': '',
+                            'json_attr_t': '', 'json_attr_tpl': ''}}}
+        mdev.mqtt.discovery_enabled = True
+        mdev.mqtt.discovery_topic_base = 'homeassistant'
+        mdev.load_config(base['mqtt'], qos=2)
+        mdev.publish_discovery()
+
+        payloads = [json.loads(p.payload) for p in link.client.pub
+                    if p.topic.startswith('homeassistant/button/')]
+        assert payloads
+        button = payloads[0]
+        assert button['cmd_t'] == 'insteon/01.02.03/scene_set/2'
+        assert button['pl_prs'] == '{"level": 102}'
+        assert 'stat_t' not in button
 
 #===========================================================================

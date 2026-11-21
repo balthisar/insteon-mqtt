@@ -1629,8 +1629,9 @@ mqtt:
     # Input scene set command.  Like the scene command above, but the
     # responders in the button's scene are set to the requested level using
     # direct commands instead of the level stored in their own databases.
-    # The button in the topic selects the scene group.  The output of passing
-    # the payload through the template must match:
+    # The button in the topic selects the scene group.  The button itself is
+    # on/off; the level is applied to the responders linked to the button.
+    # The output of passing the payload through the template must match:
     #   { "level" : 0-255, ["group" : GROUP], ["reason" : "..."] }
     # or a HomeAssistant light style payload:
     #   { "state" : "ON"/"OFF", ["brightness" : LEVEL] }

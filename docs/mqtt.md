@@ -475,7 +475,9 @@ simulate a button press and does not send an all link broadcast.  Instead a
 direct command is sent to this device and to each responder in the group, so
 that every device is set to the same level.  This is useful when the level is
 not known when the scene is created and so cannot be stored in the responder
-databases.
+databases.  Devices that cannot dim (switches, relays, and KeypadLinc
+secondary buttons) are simply turned on or off; the level applies only to
+dimmable devices.
 
 The responders are found using the cached all link database of this device,
 so the database must be up to date.  Run a
@@ -516,6 +518,11 @@ style payload (`{ "state" : "ON"/"OFF", "brightness" : 0-255 }`), or a plain
 `ON`/`OFF`.  In all cases the level is passed to the scene; a level of 0
 turns it off.  A `group` in the payload overrides the group bound to the
 topic.
+
+For a KeypadLinc, the button in the topic is an on/off trigger: the level is
+applied to the responders linked to that button, not to the button's LED.
+Only the KeypadLinc's load button (button 1, or group 9 when the load is
+detached) is dimmable.
 
 This command can also be run from the command line:
 

@@ -589,6 +589,11 @@ mqtt:
           json_attr_tpl: ""
 ```
 
+The KeypadLinc button itself is only an on/off trigger.  The level in the
+payload is applied to the responders linked to that button; the button LED
+simply turns on (or off for a level of 0).  Only the KeypadLinc's load
+button is dimmable.
+
 No `scene_set` entities are published by default; these variables are only
 used when an override (or a device's own `discovery_entities`) asks for
 them.

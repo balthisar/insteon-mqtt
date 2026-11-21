@@ -181,6 +181,16 @@ class Scene(Base):
             return
 
         group = 0x01 if group is None else int(group)
+
+        # Make sure the device actually supports this scene group.  Single
+        # group devices only support group 1 while multi-button devices
+        # support their button groups.  Without this, set() would assert.
+        responder_groups = getattr(self, 'responder_groups', None)
+        if responder_groups is not None and group not in responder_groups:
+            on_done(False, "Device %s does not support scene group %s" %
+                    (self.label, group), None)
+            return
+
         is_on = level > 0
 
         # Match the reason behavior of scene(): this device reports the

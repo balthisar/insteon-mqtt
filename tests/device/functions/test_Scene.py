@@ -213,6 +213,22 @@ class Test_Scene_Set_Function():
             mocked.assert_not_called()
         assert result == [False]
 
+    def test_invalid_group(self, tmpdir):
+        # A single group device only supports group 1.
+        protocol, modem, main, resp = self.make_scene(tmpdir)
+        result = []
+        msgs = []
+
+        def on_done(success, msg, data):
+            result.append(success)
+            msgs.append(msg)
+
+        with mock.patch.object(IM.CommandSeq, 'add') as mocked:
+            main.scene_set(level=128, group=2, on_done=on_done)
+            mocked.assert_not_called()
+        assert result == [False]
+        assert 'does not support scene group 2' in msgs[0]
+
     def test_missing_responder_entry(self, tmpdir, caplog):
         protocol, modem, main, resp = self.make_scene(
             tmpdir, add_resp_entry=False)

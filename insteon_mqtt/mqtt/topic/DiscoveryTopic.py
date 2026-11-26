@@ -71,6 +71,11 @@ class DiscoveryTopic(BaseTopic):
             base_class = disc_class
             override_classes = []
 
+        # Apply the device type override class (if any) before all others.
+        type_class = self._type_override_class(config, base_class)
+        if type_class:
+            override_classes.insert(0, type_class)
+
         dev_over_classes = self.device.config_extra.get(
             'discovery_override_class',
             None)
@@ -325,6 +330,36 @@ class DiscoveryTopic(BaseTopic):
                     LOG.error("Unique_id was not specified in config: %s",
                               config_rendered)
         return ret
+
+    #-----------------------------------------------------------------------
+    def _type_override_class(self, config, base_class):
+        """Find the device type level discovery override class.
+
+        A class named after the device's config type (the key it was listed
+        under in insteon.devices, e.g. 'mini_remote1') is applied
+        automatically as an override class.  This allows overrides to be
+        defined once for every device of a type, for types that share a
+        base discovery class (e.g. all mini remotes use 'remote').  The
+        class is only used if it isn't the base class and it defines
+        discovery_overrides.
+
+        Args:
+          config (dict):  The mqtt section of the config dict.
+          base_class (str):  The base discovery class for the device.
+
+        Returns:
+          str:  The name of the type override class or None.
+        """
+        type_class = getattr(self.device, 'config_type', None)
+        if not type_class or type_class == base_class:
+            return None
+
+        type_config = config.get(type_class, None)
+        if not isinstance(type_config, dict) or \
+           not type_config.get('discovery_overrides', None):
+            return None
+
+        return type_class
 
     #-----------------------------------------------------------------------
     def _apply_discovery_overrides(self, entities, disc_overrides):

@@ -80,6 +80,15 @@ class Test_Base_Config():
         test_device.load_config(cfg)
         assert test_device.addr == IM.Address('44.85.11')
 
+    def test_load_devices_config_type(self, test_device, tmpdir):
+        test_device.save_path = str(tmpdir)
+        test_device._load_devices({
+            'mini_remote1': ['11.22.33'],
+            'mini_remote8': [{'44.55.66': 'remote'}],
+        })
+        assert test_device.find('11.22.33').config_type == 'mini_remote1'
+        assert test_device.find('44.55.66').config_type == 'mini_remote8'
+
     def test_load_config_step2_fail_no_addr(self, test_device, tmpdir):
         cfg = IM.config.load('config-example.yaml')
         cfg['storage'] = tmpdir

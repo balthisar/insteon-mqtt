@@ -30,7 +30,10 @@ the discovery entities.  For more details and examples see
 
 ### `discovery_override_class` - Discovery Override Class
 Details of this setting can be found in [Discovery Customization in
-Insteon-MQTT](discovery_customizaton_config.md).
+Insteon-MQTT](discovery_customization_config.md).  An override class
+named after the device type (e.g. `mini_remote1`) is applied
+automatically to every device of that type, before any classes listed
+here.
 
 ### `discoverable` - Discovery Control
 Details of this setting can be found in [Discovery Customization in

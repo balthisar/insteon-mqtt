@@ -496,6 +496,68 @@ class Test_DiscoveryTopic:
         discovery_fan.disc_templates = []
 
     #-----------------------------------------------------------------------
+    def test_load_type_override_class(self, discovery_fan):
+        discovery_fan.mqtt.discovery_enabled = True
+        entity = lambda name: {"component": "fan",
+                               "config": {"name": name, "unique_id": name}}
+        config = {}
+        config['fake_dev'] = {'discovery_entities': {
+            'one': entity("one"),
+            'two': entity("two"),
+            'three': entity("three"),
+        }}
+        discovery_fan.device.config_extra['discovery_class'] = 'fake_dev'
+        discovery_fan.discovery_template_data = mock.Mock(return_value={})
+
+        def names():
+            ret = sorted(json.loads(t.payload_str)['name']
+                         for t in discovery_fan.disc_templates)
+            discovery_fan.disc_templates = []
+            return ret
+
+        # No config type - nothing extra applied
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['one', 'three', 'two']
+
+        # Config type with no matching class - nothing extra applied
+        discovery_fan.device.config_extra = {'discovery_class': 'fake_dev'}
+        discovery_fan.device.config_type = 'fake_type'
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['one', 'three', 'two']
+
+        # Type class without discovery_overrides is ignored
+        config['fake_type'] = {'discovery_entities': {'x': entity("x")}}
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['one', 'three', 'two']
+
+        # Type class overrides are applied automatically
+        config['fake_type'] = {'discovery_overrides': {
+            'two': {'discoverable': False},
+            'three': {'config': {'name': 'type'}},
+        }}
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['one', 'type']
+
+        # Device override classes are applied after the type class
+        config['dev_over'] = {'discovery_overrides': {
+            'three': {'config': {'name': 'device'}},
+        }}
+        discovery_fan.device.config_extra['discovery_override_class'] = \
+            'dev_over'
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['device', 'one']
+        # The base class entities were not modified
+        assert config['fake_dev']['discovery_entities']['three']['config'] \
+            ['name'] == 'three'
+
+        # A type class that is also the base class is not applied twice
+        del discovery_fan.device.config_extra['discovery_override_class']
+        discovery_fan.device.config_extra['discovery_class'] = 'fake_type'
+        config['fake_type']['discovery_entities'] = {'x': entity("x")}
+        discovery_fan.load_discovery_data(config)
+        assert names() == ['x']
+
+    #-----------------------------------------------------------------------
     @mock.patch('time.time', mock.MagicMock(return_value=12345))
     def test_publish(self, discovery_switch):
         discovery_switch.disc_templates.append(mock.Mock())

@@ -137,6 +137,11 @@ class Base:
         if config_extra is not None:
             self.config_extra = config_extra
 
+        # The insteon.devices config key this device was listed under (e.g.
+        # 'mini_remote1').  Set by the modem when loading the config.  Used
+        # to find an optional device type level discovery override class.
+        self.config_type = None
+
         # Moving window history of messages that are received from the
         # device.  Used for optimal hop computations.
         self.history = MsgHistory()

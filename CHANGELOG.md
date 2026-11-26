@@ -1,5 +1,10 @@
 # Revision Change History
 
+## [Unreleased]
+
+### Additions ###
+- A discovery override class named after a device type (e.g. `mqtt` `mini_remote1`) is now applied automatically to every device of that type, so overrides such as hiding unused Mini Remote buttons no longer need `discovery_override_class` on each device.
+
 ## [1.4.0] - Fix Modem Scenes
 
 ### Breaking Change ###

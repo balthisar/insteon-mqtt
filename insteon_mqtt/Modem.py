@@ -1303,6 +1303,10 @@ class Modem:
             for dev in devices:
                 LOG.info("Created %s at %s", device_type, dev.label)
 
+                # Remember the config type so discovery can apply a type
+                # level override class (e.g. mqtt.mini_remote1).
+                dev.config_type = device_type
+
                 # Store the device by ID in the map.
                 self.add(dev)
 

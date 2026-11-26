@@ -541,6 +541,51 @@ appear in the "Game Room" Area in Home Assistant; only the necessary
 (and useful) entities will appear, and the FanLinc entities will have
 custom names and icons.
 
+### Device type overrides
+
+Some device types share a single discovery template. For example, the
+`mini_remote1`, `mini_remote4`, `mini_remote6`, and `mini_remote8`
+device types all use the `remote` template, and `keypad_linc` and
+`keypad_linc_sw` both use the `keypad_linc` template. Rather than
+adding `discovery_override_class` to every device of a type, an
+override class can be named after the device type (the key used under
+`insteon` `devices`) and it will be applied automatically to every
+device of that type.
+
+```yaml
+insteon:
+  devices:
+    mini_remote1:
+      - dd.ee.01: "Stairs"
+      - dd.ee.02: "Porch"
+
+mqtt:
+  mini_remote1:
+    discovery_overrides:
+      button2:
+        discoverable: false
+      button3:
+        discoverable: false
+      button4:
+        discoverable: false
+      button5:
+        discoverable: false
+      button6:
+        discoverable: false
+      button7:
+        discoverable: false
+      button8:
+        discoverable: false
+```
+
+The device type class is applied before any other override classes,
+so `discovery_override_class` and device level `discovery_overrides`
+can still change or undo its settings for individual devices. It is
+only used when it contains `discovery_overrides` and is not the
+device's base discovery class, so device types whose name is also
+their discovery template (e.g. `switch`, `dimmer`, `keypad_linc`) are
+customized by editing that template's `discovery_entities` instead.
+
 ## Entity names for overrides
 
 Each section below documents the default entities produced during
